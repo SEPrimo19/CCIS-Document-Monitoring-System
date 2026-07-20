@@ -28,8 +28,7 @@ final class Router
         $handler = $this->routes[$method][$path] ?? null;
 
         if ($handler === null) {
-            http_response_code(404);
-            echo '404 — Not Found';
+            $this->notFound();
             return;
         }
 
@@ -40,5 +39,15 @@ final class Router
         }
 
         $handler();
+    }
+
+    private function notFound(): void
+    {
+        http_response_code(404);
+
+        $config = require dirname(__DIR__, 2) . '/config/config.php';
+
+        $appName = $config['app']['name'];
+        require dirname(__DIR__) . '/Views/errors/404.php';
     }
 }

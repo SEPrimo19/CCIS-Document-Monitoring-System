@@ -137,6 +137,21 @@ body {
 }
 .logout-link:hover { text-decoration: underline; }
 
+.logout-form { margin: 0; }
+.logout-btn {
+    font-size: .85rem;
+    font-weight: 600;
+    color: var(--brand);
+    text-decoration: none;
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    font-family: inherit;
+    cursor: pointer;
+}
+.logout-btn:hover { text-decoration: underline; }
+
 /* --- Login --- */
 .auth-card {
     max-width: 380px;

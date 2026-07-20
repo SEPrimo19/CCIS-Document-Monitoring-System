@@ -38,8 +38,10 @@ try {
     echo "seed:   reference data inserted (roles, document types, academic period)\n";
 
     // Default administrator (password hashed here, never stored in SQL).
+    // Password comes from ADMIN_PASSWORD (env/config); defaults to Admin@123
+    // for local dev — see README for how to override it.
     $adminEmail = 'admin@nwssu.edu.ph';
-    $adminPass  = 'Admin@123';
+    $adminPass  = getenv('ADMIN_PASSWORD') ?: 'Admin@123';
     $roleId = (int) $pdo->query("SELECT role_id FROM roles WHERE role_name = 'Administrator'")->fetchColumn();
 
     $stmt = $pdo->prepare(
@@ -55,7 +57,7 @@ try {
         ':ph'   => password_hash($adminPass, PASSWORD_BCRYPT),
         ':dept' => 'CCIS',
     ]);
-    echo "admin:  created ({$adminEmail} / {$adminPass}) — change after first login\n";
+    echo "admin:  created ({$adminEmail}) — password set from ADMIN_PASSWORD env var (dev default: Admin@123); change after first login\n";
 
     $tables = $pdo->query('SHOW TABLES')->fetchAll(PDO::FETCH_COLUMN);
     echo "\nDONE. " . count($tables) . " tables: " . implode(', ', $tables) . "\n";

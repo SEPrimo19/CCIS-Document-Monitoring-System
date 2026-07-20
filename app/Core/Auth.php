@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Core;
 
 use App\Models\User;
+use Throwable;
 
 /**
  * Session-backed authentication. The session itself is started once, centrally,
@@ -15,8 +16,20 @@ final class Auth
 {
     private const SESSION_KEY = 'auth_user';
 
+    /** Idle sessions are logged out after this many seconds of inactivity. */
+    private const IDLE_TIMEOUT_SECONDS = 1800;
+
     /**
-     * Start the PHP session with an httponly cookie. Safe to call once per request.
+     * A fixed, valid bcrypt hash with no corresponding real password. Run against
+     * password_verify() on the "unknown/inactive email" path in attempt() so it
+     * takes comparable time to a real check (mitigates a user-enumeration timing
+     * oracle from the "no such user" path otherwise being measurably faster).
+     */
+    private const DUMMY_HASH = '$2y$10$ffbRz9Yq47sxFLteGk7sKOakkYOdumU2KbuiymxuvzA1V74bskkhS';
+
+    /**
+     * Start the PHP session with a hardened, httponly cookie. Safe to call once
+     * per request. Also enforces the idle-session timeout.
      */
     public static function boot(): void
     {
@@ -24,14 +37,40 @@ final class Auth
             return;
         }
 
+        ini_set('session.use_strict_mode', '1');
+
+        $config = require dirname(__DIR__, 2) . '/config/config.php';
+        $isProduction = $config['app']['env'] === 'production' || $config['app']['debug'] === false;
+        $secure = $isProduction || !empty($_SERVER['HTTPS']);
+
         session_set_cookie_params([
             'lifetime' => 0,
             'path'     => '/',
+            'secure'   => $secure,
             'httponly' => true,
             'samesite' => 'Lax',
         ]);
         session_name('ccisdms_session');
         session_start();
+
+        self::enforceIdleTimeout();
+    }
+
+    /**
+     * Destroy the session once it has been idle past IDLE_TIMEOUT_SECONDS;
+     * otherwise stamp the current activity time. A session with no prior
+     * activity recorded (brand-new / anonymous) is left alone.
+     */
+    private static function enforceIdleTimeout(): void
+    {
+        $lastActivity = $_SESSION['last_activity'] ?? null;
+
+        if ($lastActivity !== null && (time() - (int) $lastActivity) > self::IDLE_TIMEOUT_SECONDS) {
+            self::logout();
+            return;
+        }
+
+        $_SESSION['last_activity'] = time();
     }
 
     /**
@@ -48,8 +87,24 @@ final class Auth
         }
 
         $user = User::findActiveByEmail($email);
-        if ($user === null || !password_verify($password, $user['password_hash'])) {
+        if ($user === null) {
+            // No such active user — still run password_verify so this path takes
+            // comparable time to a real check (see DUMMY_HASH doc comment).
+            password_verify($password, self::DUMMY_HASH);
             return false;
+        }
+
+        if (!password_verify($password, $user['password_hash'])) {
+            return false;
+        }
+
+        if (password_needs_rehash($user['password_hash'], PASSWORD_BCRYPT)) {
+            try {
+                User::updatePasswordHash((int) $user['user_id'], password_hash($password, PASSWORD_BCRYPT));
+            } catch (Throwable $e) {
+                // Best-effort: a failed rehash must not block a valid login.
+                error_log('[CCIS-DMS] password rehash failed for user ' . $user['user_id'] . ': ' . $e->getMessage());
+            }
         }
 
         session_regenerate_id(true);
@@ -90,6 +145,17 @@ final class Auth
         $current = self::user()['role_name'] ?? null;
 
         return $current !== null && in_array($current, $roles, true);
+    }
+
+    /**
+     * Update the signed-in user's role in the session, e.g. after Guard reloads
+     * the current DB row and finds the role has changed since login.
+     */
+    public static function refreshRole(string $roleName): void
+    {
+        if (isset($_SESSION[self::SESSION_KEY])) {
+            $_SESSION[self::SESSION_KEY]['role_name'] = $roleName;
+        }
     }
 
     /**

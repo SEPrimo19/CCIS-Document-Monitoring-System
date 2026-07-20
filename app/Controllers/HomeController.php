@@ -7,6 +7,7 @@ namespace App\Controllers;
 use App\Core\Auth;
 use App\Core\Controller;
 use App\Core\Database;
+use App\Core\Guard;
 use Throwable;
 
 /**
@@ -18,13 +19,20 @@ final class HomeController extends Controller
 {
     public function index(): void
     {
-        header('Location: ' . (Auth::check() ? '/dashboard' : '/login'));
+        header('Location: ' . url(Auth::check() ? '/dashboard' : '/login'));
         exit;
     }
 
+    /**
+     * Diagnostics page: DB engine/version, DB name, PHP version. Admin-only —
+     * this is infrastructure detail, not something to expose publicly.
+     */
     public function health(): void
     {
+        Guard::requireRole('Administrator');
+
         $config = $this->config();
+        $isProduction = $config['app']['env'] === 'production' || $config['app']['debug'] === false;
 
         $dbStatus = 'error';
         $dbDetail = '';
@@ -35,7 +43,7 @@ final class HomeController extends Controller
             $dbStatus = 'connected';
             $dbDetail = "MySQL/MariaDB {$version} · database '{$config['db']['name']}'";
         } catch (Throwable $e) {
-            $dbDetail = $e->getMessage();
+            $dbDetail = $isProduction ? 'unavailable' : $e->getMessage();
         }
 
         $this->view('home', [

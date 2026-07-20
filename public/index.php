@@ -38,6 +38,42 @@ spl_autoload_register(static function (string $class): void {
     }
 });
 
+/* --- Global helpers (url(), asset()) — not classes, so require explicitly --- */
+require BASE_PATH . '/app/Core/helpers.php';
+
+/* --- Base path for outbound URLs, tolerant of being served from a subfolder.
+ * Computed once from the same normalized SCRIPT_NAME directory used below to
+ * strip the inbound request path, so both directions agree. --- */
+$base = str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/'));
+define('BASE_URL', $base === '/' ? '' : $base);
+
+/* --- Env / debug detection drives error display and cookie hardening --- */
+$config = require BASE_PATH . '/config/config.php';
+$isProduction = $config['app']['env'] === 'production' || $config['app']['debug'] === false;
+
+ini_set('log_errors', '1');
+ini_set('display_errors', $isProduction ? '0' : '1');
+
+/* --- Global exception handler: never leak stack traces / SQL detail --- */
+set_exception_handler(static function (Throwable $e) use ($config, $isProduction): void {
+    error_log(sprintf(
+        '[CCIS-DMS] Uncaught %s: %s in %s:%d',
+        get_class($e),
+        $e->getMessage(),
+        $e->getFile(),
+        $e->getLine()
+    ));
+
+    if (!headers_sent()) {
+        http_response_code(500);
+    }
+
+    $appName = $config['app']['name'];
+    $debugMessage = $isProduction ? null : $e->getMessage();
+
+    require BASE_PATH . '/app/Views/errors/500.php';
+});
+
 use App\Controllers\AdminController;
 use App\Controllers\AuthController;
 use App\Controllers\DashboardController;
@@ -47,12 +83,18 @@ use App\Controllers\ReviewerController;
 use App\Core\Auth;
 use App\Core\Router;
 
+/* --- Baseline security headers (mirrored in public/.htaccess for Apache's
+ * own static responses; these cover every PHP-generated response). --- */
+header('X-Content-Type-Options: nosniff');
+header('X-Frame-Options: DENY');
+header('Referrer-Policy: no-referrer');
+header("Content-Security-Policy: default-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
+
 /* --- Session (httponly cookie), started once, centrally --- */
 Auth::boot();
 
 /* --- Resolve request path, tolerant of being served from a subfolder --- */
-$uri  = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
-$base = str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/'));
+$uri = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 if ($base !== '/' && $base !== '' && str_starts_with($uri, $base)) {
     $uri = substr($uri, strlen($base));
 }
@@ -67,7 +109,7 @@ $router->get('/health', [HomeController::class, 'health']);
 
 $router->get('/login', [AuthController::class, 'showLogin']);
 $router->post('/login', [AuthController::class, 'login']);
-$router->get('/logout', [AuthController::class, 'logout']);
+$router->post('/logout', [AuthController::class, 'logout']);
 
 $router->get('/dashboard', [DashboardController::class, 'index']);
 $router->get('/admin/dashboard', [AdminController::class, 'dashboard']);

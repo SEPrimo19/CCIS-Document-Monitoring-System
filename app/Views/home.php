@@ -13,7 +13,7 @@ $dbOk = $dbStatus === 'connected';
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= htmlspecialchars($appName) ?></title>
-    <link rel="stylesheet" href="/assets/css/style.css">
+    <link rel="stylesheet" href="<?= asset('css/style.css') ?>">
 </head>
 <body>
     <main class="wrap">
@@ -44,9 +44,9 @@ $dbOk = $dbStatus === 'connected';
         </section>
 
         <footer class="foot">
-            <p>Phase&nbsp;0 scaffold — this page is replaced once construction begins. See <code>ROADMAP.md</code>.</p>
+            <p>Admin-only health &amp; diagnostics page — application, PHP runtime, and database connectivity at a glance.</p>
         </footer>
     </main>
-    <script src="/assets/js/app.js"></script>
+    <script src="<?= asset('js/app.js') ?>"></script>
 </body>
 </html>

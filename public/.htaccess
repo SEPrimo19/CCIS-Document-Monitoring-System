@@ -8,3 +8,12 @@
 
 # Do not list directory contents.
 Options -Indexes
+
+# Security headers — backup for Apache's own static-file responses; the
+# front controller sends the same headers for every PHP-generated response.
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "DENY"
+    Header always set Referrer-Policy "no-referrer"
+    Header always set Content-Security-Policy "default-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+</IfModule>

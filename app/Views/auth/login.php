@@ -16,7 +16,7 @@ require __DIR__ . '/../partials/header.php';
         <p class="alert alert-err" role="alert"><?= htmlspecialchars($error) ?></p>
     <?php endif; ?>
 
-    <form method="post" action="/login" class="auth-form" novalidate>
+    <form method="post" action="<?= url('/login') ?>" class="auth-form" novalidate>
         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
 
         <div class="field">

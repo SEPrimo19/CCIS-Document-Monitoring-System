@@ -51,8 +51,12 @@ final class AuthController extends Controller
 
     public function logout(): void
     {
-        Auth::logout();
-        header('Location: /login');
+        $token = (string) ($_POST['csrf_token'] ?? '');
+        if (Csrf::verify($token)) {
+            Auth::logout();
+        }
+
+        header('Location: ' . url('/login'));
         exit;
     }
 
@@ -63,7 +67,7 @@ final class AuthController extends Controller
      */
     private function redirectToDashboard(): void
     {
-        header('Location: /dashboard');
+        header('Location: ' . url('/dashboard'));
         exit;
     }
 }

@@ -25,7 +25,7 @@ final class DashboardController extends Controller
         Guard::requireAuth();
 
         $role = Auth::user()['role_name'] ?? '';
-        header('Location: ' . (self::LANDING[$role] ?? '/login'));
+        header('Location: ' . url(self::LANDING[$role] ?? '/login'));
         exit;
     }
 }

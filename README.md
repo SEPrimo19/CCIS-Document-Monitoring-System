@@ -36,6 +36,9 @@ ccis-dms/
    php scripts/migrate.php
    ```
    Default admin: `admin@nwssu.edu.ph` / `Admin@123` (change it after first login).
+   The password comes from the `ADMIN_PASSWORD` environment variable and defaults to
+   `Admin@123` for local dev when unset — set `ADMIN_PASSWORD` before running `migrate.php`
+   to seed a different admin password instead.
    Note: `migrate.php` is destructive in development — it drops and recreates all tables.
 4. Run it — simplest is PHP's built-in server:
    ```

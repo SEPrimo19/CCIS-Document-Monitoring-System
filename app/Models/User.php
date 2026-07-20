@@ -25,7 +25,7 @@ final class User
             'SELECT u.user_id, u.first_name, u.last_name, u.email, u.password_hash, r.role_name
              FROM users u
              INNER JOIN roles r ON r.role_id = u.role_id
-             WHERE u.email = :email AND u.status = "active"
+             WHERE u.email = :email AND u.status = \'active\'
              LIMIT 1'
         );
         $stmt->execute([':email' => $email]);
@@ -56,6 +56,16 @@ final class User
     {
         $stmt = self::pdo()->prepare('UPDATE users SET last_login = NOW() WHERE user_id = :id');
         $stmt->execute([':id' => $userId]);
+    }
+
+    /**
+     * Persist a new password hash, used to opportunistically rehash on login
+     * when the stored hash's cost/algorithm is out of date.
+     */
+    public static function updatePasswordHash(int $userId, string $newHash): void
+    {
+        $stmt = self::pdo()->prepare('UPDATE users SET password_hash = :hash WHERE user_id = :id');
+        $stmt->execute([':hash' => $newHash, ':id' => $userId]);
     }
 
     private static function pdo(): PDO
