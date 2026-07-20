@@ -38,8 +38,17 @@ spl_autoload_register(static function (string $class): void {
     }
 });
 
+use App\Controllers\AdminController;
+use App\Controllers\AuthController;
+use App\Controllers\DashboardController;
+use App\Controllers\FacultyController;
 use App\Controllers\HomeController;
+use App\Controllers\ReviewerController;
+use App\Core\Auth;
 use App\Core\Router;
+
+/* --- Session (httponly cookie), started once, centrally --- */
+Auth::boot();
 
 /* --- Resolve request path, tolerant of being served from a subfolder --- */
 $uri  = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
@@ -54,5 +63,15 @@ if ($uri === '' || $uri === false) {
 /* --- Routes --- */
 $router = new Router();
 $router->get('/', [HomeController::class, 'index']);
+$router->get('/health', [HomeController::class, 'health']);
+
+$router->get('/login', [AuthController::class, 'showLogin']);
+$router->post('/login', [AuthController::class, 'login']);
+$router->get('/logout', [AuthController::class, 'logout']);
+
+$router->get('/dashboard', [DashboardController::class, 'index']);
+$router->get('/admin/dashboard', [AdminController::class, 'dashboard']);
+$router->get('/reviewer/dashboard', [ReviewerController::class, 'dashboard']);
+$router->get('/faculty/dashboard', [FacultyController::class, 'dashboard']);
 
 $router->dispatch($_SERVER['REQUEST_METHOD'] ?? 'GET', $uri);
