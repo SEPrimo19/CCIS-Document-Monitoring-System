@@ -37,4 +37,12 @@ $authUser = \App\Core\Auth::user();
             <?php endif; ?>
         </div>
     </header>
+    <?php if (\App\Core\Auth::hasRole('Administrator')): ?>
+        <nav class="subnav">
+            <div class="subnav-inner">
+                <a href="<?= url('/admin/dashboard') ?>">Dashboard</a>
+                <a href="<?= url('/admin/document-types') ?>">Document Types</a>
+            </div>
+        </nav>
+    <?php endif; ?>
     <main class="wrap">

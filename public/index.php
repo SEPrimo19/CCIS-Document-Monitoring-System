@@ -77,6 +77,7 @@ set_exception_handler(static function (Throwable $e) use ($config, $isProduction
 use App\Controllers\AdminController;
 use App\Controllers\AuthController;
 use App\Controllers\DashboardController;
+use App\Controllers\DocumentTypeController;
 use App\Controllers\FacultyController;
 use App\Controllers\HomeController;
 use App\Controllers\ReviewerController;
@@ -115,5 +116,13 @@ $router->get('/dashboard', [DashboardController::class, 'index']);
 $router->get('/admin/dashboard', [AdminController::class, 'dashboard']);
 $router->get('/reviewer/dashboard', [ReviewerController::class, 'dashboard']);
 $router->get('/faculty/dashboard', [FacultyController::class, 'dashboard']);
+
+$router->get('/admin/document-types', [DocumentTypeController::class, 'index']);
+$router->get('/admin/document-types/new', [DocumentTypeController::class, 'create']);
+$router->post('/admin/document-types', [DocumentTypeController::class, 'store']);
+$router->get('/admin/document-types/{id}/edit', [DocumentTypeController::class, 'edit']);
+$router->post('/admin/document-types/{id}', [DocumentTypeController::class, 'update']);
+$router->post('/admin/document-types/{id}/deactivate', [DocumentTypeController::class, 'deactivate']);
+$router->post('/admin/document-types/{id}/activate', [DocumentTypeController::class, 'activate']);
 
 $router->dispatch($_SERVER['REQUEST_METHOD'] ?? 'GET', $uri);

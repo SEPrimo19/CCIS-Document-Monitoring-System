@@ -21,7 +21,7 @@ require __DIR__ . '/../partials/header.php';
     <article class="card">
         <h2>Document Types</h2>
         <p class="detail">Add, edit, and deactivate document types (FR-27).</p>
-        <p class="status muted">Coming in Phase 4</p>
+        <p class="status muted"><a href="<?= url('/admin/document-types') ?>" class="card-link">Manage document types &rarr;</a></p>
     </article>
 
     <article class="card">
