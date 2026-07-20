@@ -61,12 +61,12 @@ feature built on top inherits them. See the commit that follows the Phase 3 buil
 | 10 | No security headers | `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, and a conservative CSP, sent from PHP and mirrored in `.htaccess` |
 | 11 | Default admin password committed & echoed | Seed password read from `ADMIN_PASSWORD` (dev default retained); password no longer printed |
 
-### Bucket B — dedicated follow-up task (planned, next)
+### Bucket B — login-endpoint hardening
 
-| Finding | Plan |
-|---------|------|
-| No brute-force protection on login | Per-email+IP failed-attempt throttle with lockout + backoff, failed logins written to `audit_log` |
-| Default credentials with no forced rotation | "Must change password on first login," built together with the FR-5 change-password / profile screen |
+| Finding | Status |
+|---------|--------|
+| No brute-force protection on login | **Done.** Per-`(email + IP)` failed-attempt throttle: 5 failures within a 15-minute window block further attempts (generic "too many attempts" message — no user enumeration) until they age out of the window; a successful login clears the counter. Failed attempts are logged in a dedicated `login_attempts` table — they cannot go in `audit_log`, whose `user_id` is `NOT NULL` and FK-bound to `users`. Successful logins are recorded in `audit_log` (`action='login'`). |
+| Default credentials with no forced rotation | **Pending** — "must change password on first login," to be built with the FR-5 change-password / profile screen in Phase 4. |
 
 ### Bucket C — deployment hardening (this document, §3)
 

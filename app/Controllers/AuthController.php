@@ -7,6 +7,9 @@ namespace App\Controllers;
 use App\Core\Auth;
 use App\Core\Controller;
 use App\Core\Csrf;
+use App\Core\LoginThrottle;
+use App\Models\AuditLog;
+use App\Models\LoginAttempt;
 
 /**
  * Login / logout. Implements FR-1 (validate credentials, reject with a
@@ -36,10 +39,42 @@ final class AuthController extends Controller
         $password = (string) ($_POST['password'] ?? '');
         $token    = (string) ($_POST['csrf_token'] ?? '');
 
-        if (Csrf::verify($token) && Auth::attempt($email, $password)) {
+        $throttleEmail = Auth::normalizeEmail($email);
+        $ip            = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+
+        if (!Csrf::verify($token)) {
+            $this->view('auth/login', [
+                'appName' => $this->config()['app']['name'],
+                'error'   => 'Invalid email or password.',
+                'email'   => $email,
+                'csrf'    => Csrf::token(),
+            ]);
+            return;
+        }
+
+        if (LoginThrottle::isLockedOut($throttleEmail, $ip)) {
+            $this->view('auth/login', [
+                'appName' => $this->config()['app']['name'],
+                'error'   => 'Too many failed attempts. Please try again in a few minutes.',
+                'email'   => $email,
+                'csrf'    => Csrf::token(),
+            ]);
+            return;
+        }
+
+        if (Auth::attempt($email, $password)) {
+            LoginAttempt::clearFailures($throttleEmail, $ip);
+
+            $userId = Auth::user()['user_id'] ?? null;
+            if ($userId !== null) {
+                AuditLog::record($userId, 'login', 'user', $userId, null, $ip);
+            }
+
             $this->redirectToDashboard();
             return;
         }
+
+        LoginAttempt::record($throttleEmail, $ip, false);
 
         $this->view('auth/login', [
             'appName' => $this->config()['app']['name'],

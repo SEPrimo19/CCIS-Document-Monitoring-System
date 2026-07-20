@@ -17,6 +17,7 @@
 -- ============================================================================
 
 SET FOREIGN_KEY_CHECKS = 0;
+DROP TABLE IF EXISTS login_attempts;
 DROP TABLE IF EXISTS audit_log;
 DROP TABLE IF EXISTS notifications;
 DROP TABLE IF EXISTS reviews;
@@ -168,4 +169,17 @@ CREATE TABLE audit_log (
     KEY idx_audit_action (action),
     KEY idx_audit_created (created_at),
     CONSTRAINT fk_audit_user FOREIGN KEY (user_id) REFERENCES users(user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Brute-force throttle log (Phase 3 remediation, Bucket B). Deliberately NOT a
+-- foreign-key child of users: a failed attempt may name an email that does not
+-- exist, and the login endpoint must not create/validate rows against users
+-- just to record an attempt.
+CREATE TABLE login_attempts (
+    attempt_id   INT AUTO_INCREMENT PRIMARY KEY,
+    email        VARCHAR(120) NOT NULL,
+    ip_address   VARCHAR(45)  NOT NULL,
+    success      TINYINT(1)   NOT NULL DEFAULT 0,
+    attempted_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_login_attempts_lookup (email, ip_address, attempted_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
