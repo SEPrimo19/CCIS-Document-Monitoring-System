@@ -1,0 +1,88 @@
+:root {
+    --bg: #f4f6fb;
+    --surface: #ffffff;
+    --text: #1a2230;
+    --muted: #5b6675;
+    --border: #e3e8f0;
+    --brand: #1f4e8c;
+    --ok: #1a7f4b;
+    --ok-bg: #e6f5ec;
+    --err: #b42318;
+    --err-bg: #fdeceb;
+    --shadow: 0 1px 3px rgba(16, 24, 40, .08), 0 1px 2px rgba(16, 24, 40, .06);
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg: #0f141b;
+        --surface: #161d27;
+        --text: #e7ecf3;
+        --muted: #9aa6b6;
+        --border: #26303d;
+        --brand: #6aa2e0;
+        --ok: #4ec27e;
+        --ok-bg: #12271b;
+        --err: #f0776b;
+        --err-bg: #2a1614;
+    }
+}
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+}
+
+.wrap {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 3rem 1.25rem;
+}
+
+.hero { text-align: center; margin-bottom: 2.5rem; }
+
+.badge {
+    display: inline-block;
+    font-size: .75rem;
+    font-weight: 700;
+    letter-spacing: .08em;
+    color: #fff;
+    background: var(--brand);
+    padding: .3rem .6rem;
+    border-radius: 999px;
+    margin-bottom: 1rem;
+}
+
+.hero h1 { margin: 0 0 .35rem; font-size: 1.9rem; }
+.hero .sub { margin: 0; color: var(--muted); font-size: .95rem; }
+
+.cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1rem;
+}
+
+.card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--border);
+    border-radius: 10px;
+    padding: 1.25rem;
+    box-shadow: var(--shadow);
+}
+
+.card h2 { margin: 0 0 .5rem; font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.card .status { margin: 0 0 .35rem; font-size: 1.25rem; font-weight: 700; }
+.card .detail { margin: 0; font-size: .85rem; color: var(--muted); word-break: break-word; }
+
+.card.ok { border-left-color: var(--ok); }
+.card.ok .status { color: var(--ok); }
+.card.err { border-left-color: var(--err); background: var(--err-bg); }
+.card.err .status { color: var(--err); }
+
+.foot { margin-top: 2.5rem; text-align: center; color: var(--muted); font-size: .85rem; }
+.foot code { background: var(--border); padding: .1rem .35rem; border-radius: 4px; }

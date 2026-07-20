@@ -1,0 +1,17 @@
+-- CCIS-DMS database schema
+-- Northwest Samar State University — CCIS Document Monitoring System
+--
+-- PLACEHOLDER. The full schema (tables, keys, indexes) is generated in Phase 2 from the
+-- systems-analyst's ERD & Data Dictionary, then implemented in Phase 3 by the
+-- senior-software-engineer / code-writer.
+--
+-- Locked design inputs (2026-07-20):
+--   Roles:         Administrator, Reviewer/Approver (Program Chair), Faculty
+--   Workflow:      upload -> review -> approve / return-for-revision -> recorded
+--   Notifications: in-app only
+--   Archiving:     by academic year (in scope)
+--   Audit log:     basic (submit/approve actions), admin view (in scope)
+--   Document types: teaching loads, syllabi, TOS, DPCR/OPCR comments & reviews,
+--                   year-end portfolios (+ admin-added types)
+
+-- (No tables yet.)

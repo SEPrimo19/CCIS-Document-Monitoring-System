@@ -1,0 +1,18 @@
+# Dependencies
+/vendor/
+
+# Environment / secrets
+/.env
+
+# Uploaded documents (keep the folder, ignore its contents)
+/public/uploads/*
+!/public/uploads/.gitkeep
+
+# Logs & OS cruft
+*.log
+.DS_Store
+Thumbs.db
+
+# Editors
+/.vscode/
+/.idea/
