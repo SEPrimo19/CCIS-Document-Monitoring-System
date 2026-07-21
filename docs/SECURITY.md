@@ -132,6 +132,11 @@ runtime (Bucket A #4), but the `php.ini` baseline is the authoritative backstop.
 
 - Change the default administrator password immediately after the first
   deployment login; do not keep `Admin@123`.
+- `scripts/migrate.php` also seeds dev-only Reviewer/Approver (`reviewer@nwssu.edu.ph`)
+  and Faculty (`faculty1@nwssu.edu.ph`, `faculty2@nwssu.edu.ph`, `faculty3@nwssu.edu.ph`)
+  accounts, documented for local development only (`REVIEWER_PASSWORD` /
+  `FACULTY_PASSWORD`, dev defaults `Reviewer@123` / `Faculty@123`) — the same caveat
+  as the admin default applies: never deploy with these unchanged.
 - Provision real accounts through the admin user-management screen (FR-26); there is
   no public self-registration by design.
 

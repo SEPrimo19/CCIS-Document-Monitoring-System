@@ -39,6 +39,14 @@ ccis-dms/
    The password comes from the `ADMIN_PASSWORD` environment variable and defaults to
    `Admin@123` for local dev when unset — set `ADMIN_PASSWORD` before running `migrate.php`
    to seed a different admin password instead.
+
+   `migrate.php` also seeds dev-only Reviewer/Approver and Faculty accounts for
+   exercising the review and submission flows (documented dev credentials — same
+   caveat as the admin default, change before any real deployment):
+   - Reviewer/Approver: `reviewer@nwssu.edu.ph` / `Reviewer@123` (from `REVIEWER_PASSWORD`)
+   - Faculty: `faculty1@nwssu.edu.ph`, `faculty2@nwssu.edu.ph`, `faculty3@nwssu.edu.ph`,
+     all `Faculty@123` (from `FACULTY_PASSWORD`)
+
    Note: `migrate.php` is destructive in development — it drops and recreates all tables.
 4. Run it — simplest is PHP's built-in server:
    ```

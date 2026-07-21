@@ -59,6 +59,46 @@ try {
     ]);
     echo "admin:  created ({$adminEmail}) — password set from ADMIN_PASSWORD env var (dev default: Admin@123); change after first login\n";
 
+    // Dev Reviewer/Approver account (Phase 4a.2), so the review workflow has
+    // someone to sign in as without hand-inserting a row.
+    $reviewerEmail = 'reviewer@nwssu.edu.ph';
+    $reviewerPass  = getenv('REVIEWER_PASSWORD') ?: 'Reviewer@123';
+    $reviewerRoleId = (int) $pdo->query("SELECT role_id FROM roles WHERE role_name = 'Reviewer/Approver'")->fetchColumn();
+
+    $stmt->execute([
+        ':role' => $reviewerRoleId,
+        ':emp'  => 'REV-001',
+        ':fn'   => 'Marites',
+        ':ln'   => 'Bautista',
+        ':em'   => $reviewerEmail,
+        ':ph'   => password_hash($reviewerPass, PASSWORD_BCRYPT),
+        ':dept' => 'CCIS',
+    ]);
+    echo "reviewer: created ({$reviewerEmail}) — password set from REVIEWER_PASSWORD env var (dev default: Reviewer@123)\n";
+
+    // Dev Faculty accounts, so eagerly-generated Pending submissions (FR-28)
+    // have real accounts to land against.
+    $facultyRoleId = (int) $pdo->query("SELECT role_id FROM roles WHERE role_name = 'Faculty'")->fetchColumn();
+    $facultyPass = getenv('FACULTY_PASSWORD') ?: 'Faculty@123';
+    $facultyHash = password_hash($facultyPass, PASSWORD_BCRYPT);
+    $facultyAccounts = [
+        ['FAC-001', 'Juan', 'Dela Cruz', 'faculty1@nwssu.edu.ph', 'BSIT'],
+        ['FAC-002', 'Angelica', 'Reyes',  'faculty2@nwssu.edu.ph', 'BSIS'],
+        ['FAC-003', 'Ramon', 'Villanueva', 'faculty3@nwssu.edu.ph', 'BSIT'],
+    ];
+    foreach ($facultyAccounts as [$emp, $fn, $ln, $em, $dept]) {
+        $stmt->execute([
+            ':role' => $facultyRoleId,
+            ':emp'  => $emp,
+            ':fn'   => $fn,
+            ':ln'   => $ln,
+            ':em'   => $em,
+            ':ph'   => $facultyHash,
+            ':dept' => $dept,
+        ]);
+    }
+    echo "faculty: created (faculty1@nwssu.edu.ph, faculty2@nwssu.edu.ph, faculty3@nwssu.edu.ph) — password set from FACULTY_PASSWORD env var (dev default: Faculty@123)\n";
+
     $tables = $pdo->query('SHOW TABLES')->fetchAll(PDO::FETCH_COLUMN);
     echo "\nDONE. " . count($tables) . " tables: " . implode(', ', $tables) . "\n";
 } catch (Throwable $e) {

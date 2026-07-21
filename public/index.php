@@ -80,6 +80,7 @@ use App\Controllers\DashboardController;
 use App\Controllers\DocumentTypeController;
 use App\Controllers\FacultyController;
 use App\Controllers\HomeController;
+use App\Controllers\RequirementController;
 use App\Controllers\ReviewerController;
 use App\Core\Auth;
 use App\Core\Router;
@@ -124,5 +125,9 @@ $router->get('/admin/document-types/{id}/edit', [DocumentTypeController::class, 
 $router->post('/admin/document-types/{id}', [DocumentTypeController::class, 'update']);
 $router->post('/admin/document-types/{id}/deactivate', [DocumentTypeController::class, 'deactivate']);
 $router->post('/admin/document-types/{id}/activate', [DocumentTypeController::class, 'activate']);
+
+$router->get('/admin/requirements', [RequirementController::class, 'index']);
+$router->get('/admin/requirements/new', [RequirementController::class, 'create']);
+$router->post('/admin/requirements', [RequirementController::class, 'store']);
 
 $router->dispatch($_SERVER['REQUEST_METHOD'] ?? 'GET', $uri);

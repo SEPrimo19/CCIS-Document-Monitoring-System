@@ -27,7 +27,7 @@ require __DIR__ . '/../partials/header.php';
     <article class="card">
         <h2>Requirements &amp; Periods</h2>
         <p class="detail">Define requirements, deadlines, and academic periods (FR-28, FR-29).</p>
-        <p class="status muted">Coming in Phase 4</p>
+        <p class="status muted"><a href="<?= url('/admin/requirements') ?>" class="card-link">Manage requirements &rarr;</a></p>
     </article>
 
     <article class="card">

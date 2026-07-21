@@ -52,6 +52,25 @@ final class User
         return $row === false ? null : $row;
     }
 
+    /**
+     * user_id list of every active user whose role is Faculty. Used to
+     * eagerly generate one Pending submission per faculty when an
+     * administrator publishes a requirement (FR-28).
+     *
+     * @return list<int>
+     */
+    public static function activeFacultyIds(): array
+    {
+        $stmt = self::pdo()->query(
+            "SELECT u.user_id
+             FROM users u
+             INNER JOIN roles r ON r.role_id = u.role_id
+             WHERE u.status = 'active' AND r.role_name = 'Faculty'"
+        );
+
+        return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+    }
+
     public static function touchLastLogin(int $userId): void
     {
         $stmt = self::pdo()->prepare('UPDATE users SET last_login = NOW() WHERE user_id = :id');

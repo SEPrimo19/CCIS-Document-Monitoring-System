@@ -42,6 +42,7 @@ $authUser = \App\Core\Auth::user();
             <div class="subnav-inner">
                 <a href="<?= url('/admin/dashboard') ?>">Dashboard</a>
                 <a href="<?= url('/admin/document-types') ?>">Document Types</a>
+                <a href="<?= url('/admin/requirements') ?>">Requirements</a>
             </div>
         </nav>
     <?php endif; ?>
