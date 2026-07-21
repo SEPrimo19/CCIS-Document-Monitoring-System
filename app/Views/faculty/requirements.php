@@ -2,7 +2,7 @@
 /**
  * @var string $appName
  * @var array{period_id:int,school_year:string,semester:string,label:?string,start_date:?string,end_date:?string,is_active:int}|null $period
- * @var list<array{submission_id:int,status:string,current_version:int,updated_at:string,title:string,deadline:?string,doc_type_name:string,file_id:?int,file_name:?string}> $checklist
+ * @var list<array{submission_id:int,status:string,current_version:int,updated_at:string,title:string,deadline:?string,doc_type_name:string,file_id:?int,file_name:?string,last_comment:?string}> $checklist
  * @var array{type:string,message:string}|null $flash
  * @var string $csrf
  */
@@ -76,7 +76,12 @@ $statusPillClass = [
                                 &mdash;
                             <?php endif; ?>
                         </td>
-                        <td><span class="status-pill <?= $pillClass ?>"><?= htmlspecialchars($row['status']) ?></span></td>
+                        <td>
+                            <span class="status-pill <?= $pillClass ?>"><?= htmlspecialchars($row['status']) ?></span>
+                            <?php if ($row['status'] === 'Returned-for-revision' && $row['last_comment'] !== null && $row['last_comment'] !== ''): ?>
+                                <p class="review-comment-note"><strong>Reviewer:</strong> <?= htmlspecialchars($row['last_comment']) ?></p>
+                            <?php endif; ?>
+                        </td>
                         <td><?= htmlspecialchars(date('M j, Y', strtotime($row['updated_at']))) ?></td>
                         <td class="table-actions">
                             <?php if ($canUpload): ?>

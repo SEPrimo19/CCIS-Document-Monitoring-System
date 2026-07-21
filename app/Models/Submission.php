@@ -72,9 +72,13 @@ final class Submission
     /**
      * A faculty member's submissions for a period, joined to the requirement +
      * document type, with the current version's file (if any) for the
-     * "My Requirements" checklist (FR-6).
+     * "My Requirements" checklist (FR-6). `last_comment` is the most recent
+     * reviewer comment on record for the submission (via a correlated
+     * subquery on reviews) — only meaningful/shown by the view when status is
+     * Returned-for-revision (FR-15), so faculty know what to fix before
+     * resubmitting.
      *
-     * @return list<array{submission_id:int,status:string,current_version:int,updated_at:string,title:string,deadline:?string,doc_type_name:string,file_id:?int,file_name:?string}>
+     * @return list<array{submission_id:int,status:string,current_version:int,updated_at:string,title:string,deadline:?string,doc_type_name:string,file_id:?int,file_name:?string,last_comment:?string}>
      */
     public static function checklistForFaculty(int $facultyId, int $periodId): array
     {
@@ -82,7 +86,12 @@ final class Submission
             "SELECT s.submission_id, s.status, s.current_version, s.updated_at,
                     r.title, r.deadline,
                     dt.name AS doc_type_name,
-                    f.file_id, f.file_name
+                    f.file_id, f.file_name,
+                    (SELECT rv.comments
+                     FROM reviews rv
+                     WHERE rv.submission_id = s.submission_id
+                     ORDER BY rv.reviewed_at DESC, rv.review_id DESC
+                     LIMIT 1) AS last_comment
              FROM submissions s
              INNER JOIN requirements r ON r.requirement_id = s.requirement_id
              INNER JOIN document_types dt ON dt.doc_type_id = r.doc_type_id
@@ -96,6 +105,114 @@ final class Submission
         ]);
 
         return $stmt->fetchAll();
+    }
+
+    /**
+     * Every Submitted submission for a period — the shared reviewer queue
+     * (FR-12). No reviewer filter: any Reviewer/Approver sees every item.
+     * Optionally narrowed to one document type. Oldest submitted first, so
+     * the queue works like a FIFO.
+     *
+     * @return list<array{submission_id:int,status:string,current_version:int,submitted_at:?string,title:string,doc_type_id:int,doc_type_name:string,faculty_name:string,file_id:?int}>
+     */
+    public static function queueForReview(int $periodId, ?int $docTypeId): array
+    {
+        $sql = "SELECT s.submission_id, s.status, s.current_version, s.submitted_at,
+                       r.title,
+                       dt.doc_type_id, dt.name AS doc_type_name,
+                       CONCAT(u.first_name, ' ', u.last_name) AS faculty_name,
+                       f.file_id
+                FROM submissions s
+                INNER JOIN requirements r ON r.requirement_id = s.requirement_id
+                INNER JOIN document_types dt ON dt.doc_type_id = r.doc_type_id
+                INNER JOIN users u ON u.user_id = s.faculty_id
+                LEFT JOIN document_files f ON f.submission_id = s.submission_id AND f.version_no = s.current_version
+                WHERE s.status = 'Submitted' AND r.period_id = :period_id";
+
+        $params = [':period_id' => $periodId];
+
+        if ($docTypeId !== null) {
+            $sql .= ' AND dt.doc_type_id = :doc_type_id';
+            $params[':doc_type_id'] = $docTypeId;
+        }
+
+        $sql .= ' ORDER BY s.submitted_at ASC';
+
+        $stmt = self::pdo()->prepare($sql);
+        $stmt->execute($params);
+
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * One submission for the review detail/decision page, with the
+     * requirement, document type, faculty name, and current-version file —
+     * no ownership restriction, since any reviewer may act on it (shared
+     * queue). Null if the submission doesn't exist.
+     *
+     * @return array{submission_id:int,status:string,current_version:int,submitted_at:?string,updated_at:string,title:string,description:?string,deadline:?string,doc_type_name:string,faculty_name:string,file_id:?int,file_name:?string}|null
+     */
+    public static function findForReview(int $submissionId): ?array
+    {
+        $stmt = self::pdo()->prepare(
+            "SELECT s.submission_id, s.status, s.current_version, s.submitted_at, s.updated_at,
+                    r.title, r.description, r.deadline,
+                    dt.name AS doc_type_name,
+                    CONCAT(u.first_name, ' ', u.last_name) AS faculty_name,
+                    f.file_id, f.file_name
+             FROM submissions s
+             INNER JOIN requirements r ON r.requirement_id = s.requirement_id
+             INNER JOIN document_types dt ON dt.doc_type_id = r.doc_type_id
+             INNER JOIN users u ON u.user_id = s.faculty_id
+             LEFT JOIN document_files f ON f.submission_id = s.submission_id AND f.version_no = s.current_version
+             WHERE s.submission_id = :id
+             LIMIT 1"
+        );
+        $stmt->execute([':id' => $submissionId]);
+        $row = $stmt->fetch();
+
+        return $row === false ? null : $row;
+    }
+
+    /**
+     * Record a reviewer's decision on a submission. The `AND status =
+     * 'Submitted'` clause is an atomic concurrency guard: it only ever
+     * affects a row that is still awaiting review, so if two reviewers race
+     * on the same shared-queue item, only the first UPDATE actually changes
+     * anything. Returns the number of rows affected — the caller must treat
+     * 0 as "someone else already decided this" and roll back rather than
+     * also inserting a reviews row.
+     */
+    public static function markReviewed(int $submissionId, string $newStatus): int
+    {
+        $stmt = self::pdo()->prepare(
+            "UPDATE submissions
+             SET status = :status
+             WHERE submission_id = :id AND status = 'Submitted'"
+        );
+        $stmt->execute([
+            ':status' => $newStatus,
+            ':id'     => $submissionId,
+        ]);
+
+        return $stmt->rowCount();
+    }
+
+    /**
+     * Count of submissions currently awaiting review (status='Submitted') in
+     * a period, for the reviewer dashboard's summary card.
+     */
+    public static function awaitingReviewCount(int $periodId): int
+    {
+        $stmt = self::pdo()->prepare(
+            "SELECT COUNT(*) AS total
+             FROM submissions s
+             INNER JOIN requirements r ON r.requirement_id = s.requirement_id
+             WHERE s.status = 'Submitted' AND r.period_id = :period_id"
+        );
+        $stmt->execute([':period_id' => $periodId]);
+
+        return (int) $stmt->fetchColumn();
     }
 
     /**

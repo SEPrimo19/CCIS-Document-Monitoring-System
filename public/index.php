@@ -134,6 +134,10 @@ $router->post('/admin/requirements', [RequirementController::class, 'store']);
 $router->get('/faculty/requirements', [FacultyController::class, 'requirements']);
 $router->post('/faculty/submissions/{id}/upload', [FacultyController::class, 'upload']);
 
+$router->get('/reviewer/queue', [ReviewerController::class, 'queue']);
+$router->get('/reviewer/submissions/{id}/review', [ReviewerController::class, 'review']);
+$router->post('/reviewer/submissions/{id}/review', [ReviewerController::class, 'decide']);
+
 $router->get('/documents/{id}/download', [DocumentController::class, 'download']);
 
 $router->dispatch($_SERVER['REQUEST_METHOD'] ?? 'GET', $uri);

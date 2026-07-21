@@ -54,4 +54,12 @@ $authUser = \App\Core\Auth::user();
             </div>
         </nav>
     <?php endif; ?>
+    <?php if (\App\Core\Auth::hasRole('Reviewer/Approver')): ?>
+        <nav class="subnav">
+            <div class="subnav-inner">
+                <a href="<?= url('/reviewer/dashboard') ?>">Dashboard</a>
+                <a href="<?= url('/reviewer/queue') ?>">Review Queue</a>
+            </div>
+        </nav>
+    <?php endif; ?>
     <main class="wrap">

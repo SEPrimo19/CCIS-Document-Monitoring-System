@@ -2,6 +2,7 @@
 /**
  * @var string $appName
  * @var array{user_id:int,first_name:string,last_name:string,email:string,role_name:string} $user
+ * @var int $awaitingCount
  */
 require __DIR__ . '/../partials/header.php';
 ?>
@@ -12,16 +13,17 @@ require __DIR__ . '/../partials/header.php';
 </section>
 
 <section class="cards">
-    <article class="card">
-        <h2>Review Queue</h2>
-        <p class="detail">Submitted documents awaiting a decision, filterable by document type and period (FR-12).</p>
-        <p class="status muted">Coming in Phase 4</p>
+    <article class="card<?= $awaitingCount > 0 ? ' err' : '' ?>">
+        <h2>Awaiting Review</h2>
+        <p class="status"><?= (int) $awaitingCount ?></p>
+        <p class="detail">Submitted documents awaiting a decision for the active period (FR-12).</p>
+        <p class="status muted"><a href="<?= url('/reviewer/queue') ?>" class="card-link">Open review queue &rarr;</a></p>
     </article>
 
     <article class="card">
         <h2>Decisions</h2>
         <p class="detail">Approve or return for revision, with required comments on return (FR-13, FR-14).</p>
-        <p class="status muted">Coming in Phase 4</p>
+        <p class="status muted"><a href="<?= url('/reviewer/queue') ?>" class="card-link">Open review queue &rarr;</a></p>
     </article>
 
     <article class="card">
