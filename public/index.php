@@ -77,6 +77,7 @@ set_exception_handler(static function (Throwable $e) use ($config, $isProduction
 use App\Controllers\AdminController;
 use App\Controllers\AuthController;
 use App\Controllers\DashboardController;
+use App\Controllers\DocumentController;
 use App\Controllers\DocumentTypeController;
 use App\Controllers\FacultyController;
 use App\Controllers\HomeController;
@@ -129,5 +130,10 @@ $router->post('/admin/document-types/{id}/activate', [DocumentTypeController::cl
 $router->get('/admin/requirements', [RequirementController::class, 'index']);
 $router->get('/admin/requirements/new', [RequirementController::class, 'create']);
 $router->post('/admin/requirements', [RequirementController::class, 'store']);
+
+$router->get('/faculty/requirements', [FacultyController::class, 'requirements']);
+$router->post('/faculty/submissions/{id}/upload', [FacultyController::class, 'upload']);
+
+$router->get('/documents/{id}/download', [DocumentController::class, 'download']);
 
 $router->dispatch($_SERVER['REQUEST_METHOD'] ?? 'GET', $uri);

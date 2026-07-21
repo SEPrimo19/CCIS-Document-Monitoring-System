@@ -2,6 +2,7 @@
 /**
  * @var string $appName
  * @var array{user_id:int,first_name:string,last_name:string,email:string,role_name:string} $user
+ * @var array{Pending:int,Submitted:int,Approved:int,'Returned-for-revision':int} $counts
  */
 require __DIR__ . '/../partials/header.php';
 ?>
@@ -13,15 +14,35 @@ require __DIR__ . '/../partials/header.php';
 
 <section class="cards">
     <article class="card">
-        <h2>My Requirements</h2>
-        <p class="detail">Checklist of submitted vs. pending/missing requirements for the active period, with deadlines (FR-6).</p>
-        <p class="status muted">Coming in Phase 4</p>
+        <h2>Pending</h2>
+        <p class="status"><?= (int) $counts['Pending'] ?></p>
+        <p class="detail">Not yet uploaded for the active period.</p>
     </article>
 
     <article class="card">
-        <h2>Upload Document</h2>
-        <p class="detail">Submit a signed document against a requirement (FR-7, FR-8).</p>
-        <p class="status muted">Coming in Phase 4</p>
+        <h2>Submitted</h2>
+        <p class="status"><?= (int) $counts['Submitted'] ?></p>
+        <p class="detail">Awaiting reviewer action.</p>
+    </article>
+
+    <article class="card ok">
+        <h2>Approved</h2>
+        <p class="status"><?= (int) $counts['Approved'] ?></p>
+        <p class="detail">Accepted by a reviewer.</p>
+    </article>
+
+    <article class="card err">
+        <h2>Returned</h2>
+        <p class="status"><?= (int) $counts['Returned-for-revision'] ?></p>
+        <p class="detail">Needs revision and resubmission.</p>
+    </article>
+</section>
+
+<section class="cards">
+    <article class="card">
+        <h2>My Requirements</h2>
+        <p class="detail">Checklist of submitted vs. pending/missing requirements for the active period, with deadlines and upload (FR-6, FR-7, FR-8).</p>
+        <p class="status muted"><a href="<?= url('/faculty/requirements') ?>" class="card-link">View checklist &rarr;</a></p>
     </article>
 
     <article class="card">

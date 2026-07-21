@@ -1,0 +1,102 @@
+<?php
+/**
+ * @var string $appName
+ * @var array{period_id:int,school_year:string,semester:string,label:?string,start_date:?string,end_date:?string,is_active:int}|null $period
+ * @var list<array{submission_id:int,status:string,current_version:int,updated_at:string,title:string,deadline:?string,doc_type_name:string,file_id:?int,file_name:?string}> $checklist
+ * @var array{type:string,message:string}|null $flash
+ * @var string $csrf
+ */
+require __DIR__ . '/../partials/header.php';
+
+$periodLabel = $period !== null
+    ? ($period['label'] ?? ($period['school_year'] . ' — ' . $period['semester'] . ' Semester'))
+    : null;
+
+$statusPillClass = [
+    'Pending'               => 'status-pill-pending',
+    'Submitted'             => 'status-pill-submitted',
+    'Approved'              => 'status-pill-approved',
+    'Returned-for-revision' => 'status-pill-returned',
+];
+?>
+<section class="page-head">
+    <div>
+        <span class="badge">Faculty</span>
+        <h1>My Requirements<?= $periodLabel !== null ? ' — ' . htmlspecialchars($periodLabel) : '' ?></h1>
+        <p class="sub">Upload against each requirement for the active academic period (FR-6, FR-7, FR-8).</p>
+    </div>
+</section>
+
+<?php if ($flash !== null): ?>
+    <p class="alert <?= $flash['type'] === 'ok' ? 'alert-ok' : 'alert-err' ?>" role="alert">
+        <?= htmlspecialchars($flash['message']) ?>
+    </p>
+<?php endif; ?>
+
+<?php if ($period === null): ?>
+    <p class="alert alert-err" role="alert">
+        No active academic period is set. Check back once the administrator activates one.
+    </p>
+<?php else: ?>
+    <div class="table-wrap">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Requirement</th>
+                    <th>Document Type</th>
+                    <th>Deadline</th>
+                    <th>Status</th>
+                    <th>Last updated</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if ($checklist === []): ?>
+                    <tr>
+                        <td colspan="6" class="table-empty">No requirements assigned for the active period yet.</td>
+                    </tr>
+                <?php endif; ?>
+                <?php foreach ($checklist as $row): ?>
+                    <?php
+                    $isOverdue = $row['deadline'] !== null
+                        && $row['deadline'] < date('Y-m-d')
+                        && $row['status'] !== 'Approved';
+                    $canUpload = in_array($row['status'], ['Pending', 'Returned-for-revision'], true);
+                    $hasFile = $row['file_id'] !== null;
+                    $pillClass = $statusPillClass[$row['status']] ?? 'status-pill-pending';
+                    ?>
+                    <tr>
+                        <td><?= htmlspecialchars($row['title']) ?></td>
+                        <td><?= htmlspecialchars($row['doc_type_name']) ?></td>
+                        <td>
+                            <?php if ($row['deadline'] !== null): ?>
+                                <?= htmlspecialchars(date('M j, Y', strtotime($row['deadline']))) ?>
+                                <?php if ($isOverdue): ?><span class="overdue">Overdue</span><?php endif; ?>
+                            <?php else: ?>
+                                &mdash;
+                            <?php endif; ?>
+                        </td>
+                        <td><span class="status-pill <?= $pillClass ?>"><?= htmlspecialchars($row['status']) ?></span></td>
+                        <td><?= htmlspecialchars(date('M j, Y', strtotime($row['updated_at']))) ?></td>
+                        <td class="table-actions">
+                            <?php if ($canUpload): ?>
+                                <form method="post" enctype="multipart/form-data" action="<?= url('/faculty/submissions/' . $row['submission_id'] . '/upload') ?>" class="upload-form">
+                                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+                                    <input type="file" name="document" accept=".pdf,.doc,.docx" required>
+                                    <button type="submit" class="btn-sm btn-primary-sm">Upload</button>
+                                </form>
+                            <?php endif; ?>
+                            <?php if ($hasFile): ?>
+                                <a href="<?= url('/documents/' . $row['file_id'] . '/download') ?>" class="btn-sm btn-secondary">Download</a>
+                            <?php endif; ?>
+                            <?php if (!$canUpload && !$hasFile): ?>
+                                <span class="muted-note">&mdash;</span>
+                            <?php endif; ?>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+<?php endif; ?>
+<?php require __DIR__ . '/../partials/footer.php'; ?>

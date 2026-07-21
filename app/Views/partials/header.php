@@ -46,4 +46,12 @@ $authUser = \App\Core\Auth::user();
             </div>
         </nav>
     <?php endif; ?>
+    <?php if (\App\Core\Auth::hasRole('Faculty')): ?>
+        <nav class="subnav">
+            <div class="subnav-inner">
+                <a href="<?= url('/faculty/dashboard') ?>">Dashboard</a>
+                <a href="<?= url('/faculty/requirements') ?>">My Requirements</a>
+            </div>
+        </nav>
+    <?php endif; ?>
     <main class="wrap">
