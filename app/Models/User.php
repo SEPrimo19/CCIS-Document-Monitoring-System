@@ -71,6 +71,26 @@ final class User
         return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
     }
 
+    /**
+     * {user_id, first_name, last_name} for every active Faculty account,
+     * ordered by last_name then first_name — the row axis of the admin
+     * monitoring matrix (FR-17).
+     *
+     * @return list<array{user_id:int,first_name:string,last_name:string}>
+     */
+    public static function activeFaculty(): array
+    {
+        $stmt = self::pdo()->query(
+            "SELECT u.user_id, u.first_name, u.last_name
+             FROM users u
+             INNER JOIN roles r ON r.role_id = u.role_id
+             WHERE u.status = 'active' AND r.role_name = 'Faculty'
+             ORDER BY u.last_name ASC, u.first_name ASC"
+        );
+
+        return $stmt->fetchAll();
+    }
+
     public static function touchLastLogin(int $userId): void
     {
         $stmt = self::pdo()->prepare('UPDATE users SET last_login = NOW() WHERE user_id = :id');

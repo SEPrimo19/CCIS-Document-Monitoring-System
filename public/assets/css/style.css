@@ -231,6 +231,9 @@ body {
 
 .card .status.muted { color: var(--muted); font-size: .85rem; font-weight: 600; }
 
+/* --- Prominent dashboard call-to-action (e.g. "Open Monitoring Board") --- */
+.dash-cta { text-align: center; margin: 0 0 1.5rem; }
+
 /* --- 403 --- */
 .error-card { max-width: 480px; margin: 3rem auto 0; text-align: center; }
 .error-card .badge.err { background: var(--err); }
@@ -434,6 +437,7 @@ body {
 /* --- Reviewer queue: document-type filter --- */
 .filter-form {
     display: flex;
+    flex-wrap: wrap;
     align-items: flex-end;
     gap: .75rem;
     margin-bottom: 1rem;
@@ -511,3 +515,31 @@ body {
     resize: vertical;
 }
 .decision-form textarea:focus { outline: 2px solid var(--brand); outline-offset: 1px; }
+
+/* --- Admin monitoring board (FR-17..FR-20) --- */
+.section-title { font-size: 1.05rem; margin: 2rem 0 .75rem; }
+
+.matrix-wrap { margin-bottom: 2rem; }
+
+.matrix-table th { white-space: normal; vertical-align: bottom; min-width: 150px; }
+.matrix-table th:first-child, .matrix-table td:first-child { text-align: left; min-width: 160px; }
+.matrix-table td.matrix-cell { white-space: nowrap; text-align: center; }
+
+.matrix-faculty-col {
+    position: sticky;
+    left: 0;
+    background: var(--surface);
+}
+.matrix-table thead .matrix-faculty-col { background: var(--bg); }
+
+.matrix-col-meta {
+    display: block;
+    font-size: .7rem;
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: 0;
+    color: var(--muted);
+    margin-top: .15rem;
+}
+
+.matrix-cell-overdue { box-shadow: inset 0 0 0 2px var(--err); border-radius: 4px; }

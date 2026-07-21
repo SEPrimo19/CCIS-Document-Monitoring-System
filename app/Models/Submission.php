@@ -293,6 +293,145 @@ final class Submission
         return $counts;
     }
 
+    /**
+     * Submission counts by status across ALL faculty for a period, for the
+     * admin monitoring board's figures (FR-18). Every status key is always
+     * present, defaulting to 0.
+     *
+     * @return array{Pending:int,Submitted:int,Approved:int,'Returned-for-revision':int}
+     */
+    public static function statusCountsForPeriod(int $periodId): array
+    {
+        $counts = [
+            'Pending'               => 0,
+            'Submitted'             => 0,
+            'Approved'              => 0,
+            'Returned-for-revision' => 0,
+        ];
+
+        $stmt = self::pdo()->prepare(
+            'SELECT s.status, COUNT(*) AS total
+             FROM submissions s
+             INNER JOIN requirements r ON r.requirement_id = s.requirement_id
+             WHERE r.period_id = :period_id
+             GROUP BY s.status'
+        );
+        $stmt->execute([':period_id' => $periodId]);
+
+        foreach ($stmt->fetchAll() as $row) {
+            $counts[$row['status']] = (int) $row['total'];
+        }
+
+        return $counts;
+    }
+
+    /**
+     * Count of submissions in a period that are past their requirement's
+     * deadline and not yet Approved (FR-20). A NULL deadline never counts as
+     * overdue.
+     */
+    public static function overdueCountForPeriod(int $periodId): int
+    {
+        $stmt = self::pdo()->prepare(
+            "SELECT COUNT(*) AS total
+             FROM submissions s
+             INNER JOIN requirements r ON r.requirement_id = s.requirement_id
+             WHERE r.period_id = :period_id
+               AND r.deadline IS NOT NULL
+               AND r.deadline < CURDATE()
+               AND s.status <> 'Approved'"
+        );
+        $stmt->execute([':period_id' => $periodId]);
+
+        return (int) $stmt->fetchColumn();
+    }
+
+    /**
+     * Every submission in a period as a flat {faculty_id, requirement_id,
+     * status} list — the raw material for the admin monitoring matrix
+     * (FR-17). The controller/view builds the [faculty_id][requirement_id]
+     * lookup and pairs it with Requirement::allForPeriod() columns and
+     * User::activeFaculty() rows.
+     *
+     * @return list<array{faculty_id:int,requirement_id:int,status:string}>
+     */
+    public static function gridForPeriod(int $periodId): array
+    {
+        $stmt = self::pdo()->prepare(
+            'SELECT s.faculty_id, s.requirement_id, s.status
+             FROM submissions s
+             INNER JOIN requirements r ON r.requirement_id = s.requirement_id
+             WHERE r.period_id = :period_id'
+        );
+        $stmt->execute([':period_id' => $periodId]);
+
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * The valid submissions.status enum values, exposed so callers (e.g. the
+     * admin search filter) can validate a status value before using it.
+     *
+     * @return list<string>
+     */
+    public static function statuses(): array
+    {
+        return self::STATUSES;
+    }
+
+    /**
+     * A flat, filterable submissions list for a period — the admin
+     * submission search (FR-19). Every filter is optional and, when applied,
+     * is bound as a parameter — the WHERE clause is built dynamically but
+     * never by concatenating a value into the SQL string. `$status` is
+     * re-validated against the enum here (defense in depth: the controller
+     * validates it too) and silently ignored if invalid rather than used.
+     *
+     * @return list<array{submission_id:int,faculty_name:string,title:string,doc_type_id:int,doc_type_name:string,status:string,deadline:?string,submitted_at:?string,file_id:?int}>
+     */
+    public static function searchForPeriod(int $periodId, ?string $facultyName, ?string $status, ?int $docTypeId): array
+    {
+        $sql = "SELECT s.submission_id,
+                       CONCAT(u.first_name, ' ', u.last_name) AS faculty_name,
+                       r.title, dt.doc_type_id, dt.name AS doc_type_name,
+                       s.status, r.deadline, s.submitted_at,
+                       f.file_id
+                FROM submissions s
+                INNER JOIN requirements r ON r.requirement_id = s.requirement_id
+                INNER JOIN document_types dt ON dt.doc_type_id = r.doc_type_id
+                INNER JOIN users u ON u.user_id = s.faculty_id
+                LEFT JOIN document_files f ON f.submission_id = s.submission_id AND f.version_no = s.current_version
+                WHERE r.period_id = :period_id";
+
+        $params = [':period_id' => $periodId];
+
+        $facultyName = $facultyName !== null ? trim($facultyName) : null;
+        if ($facultyName !== null && $facultyName !== '') {
+            $sql .= " AND CONCAT(u.first_name, ' ', u.last_name) LIKE :faculty_name";
+            $params[':faculty_name'] = '%' . $facultyName . '%';
+        }
+
+        if ($status !== null && in_array($status, self::STATUSES, true)) {
+            $sql .= ' AND s.status = :status';
+            $params[':status'] = $status;
+        }
+
+        if ($docTypeId !== null) {
+            $sql .= ' AND dt.doc_type_id = :doc_type_id';
+            $params[':doc_type_id'] = $docTypeId;
+        }
+
+        $sql .= ' ORDER BY u.last_name ASC, u.first_name ASC, r.title ASC';
+
+        $stmt = self::pdo()->prepare($sql);
+        $stmt->execute($params);
+
+        return $stmt->fetchAll();
+    }
+
+    /** The submissions.status ENUM values, in schema order. */
+    private const STATUSES = ['Pending', 'Submitted', 'Approved', 'Returned-for-revision'];
+
     private static function pdo(): PDO
     {
         static $config = null;

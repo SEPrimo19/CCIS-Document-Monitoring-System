@@ -43,6 +43,7 @@ $authUser = \App\Core\Auth::user();
                 <a href="<?= url('/admin/dashboard') ?>">Dashboard</a>
                 <a href="<?= url('/admin/document-types') ?>">Document Types</a>
                 <a href="<?= url('/admin/requirements') ?>">Requirements</a>
+                <a href="<?= url('/admin/monitoring') ?>">Monitoring</a>
             </div>
         </nav>
     <?php endif; ?>
