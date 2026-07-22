@@ -12,6 +12,7 @@ use App\Core\Guard;
 use App\Models\AcademicPeriod;
 use App\Models\AuditLog;
 use App\Models\DocumentType;
+use App\Models\Notification;
 use App\Models\Review;
 use App\Models\Submission;
 use Throwable;
@@ -150,8 +151,21 @@ final class ReviewerController extends Controller
             throw $e;
         }
 
-        // TODO(notifications): notify the faculty owner of this decision once
-        // in-app notifications (FR-2x, upcoming slice) are wired up.
+        // Best-effort, post-commit: a notification is a secondary side-effect
+        // and must never undo an already-recorded decision (mirrors the
+        // password-rehash best-effort pattern in Auth::attempt()).
+        try {
+            $title = $decision === 'Approved'
+                ? 'Document approved'
+                : 'Document returned for revision';
+            $message = $decision === 'Approved'
+                ? 'Your submission for "' . $submission['title'] . '" was approved.'
+                : 'Your submission for "' . $submission['title'] . '" was returned for revision. Please review the comments and resubmit.';
+
+            Notification::create((int) $submission['faculty_id'], $submissionId, 'status_change', $title, $message);
+        } catch (Throwable $e) {
+            error_log('[CCIS-DMS] notification create failed for submission ' . $submissionId . ': ' . $e->getMessage());
+        }
 
         $detail = $submission['title'] . ($storedComments !== null ? '; ' . mb_substr($storedComments, 0, 120) : '');
         AuditLog::record(
@@ -201,7 +215,7 @@ final class ReviewerController extends Controller
     }
 
     /**
-     * @param array{submission_id:int,status:string,current_version:int,submitted_at:?string,updated_at:string,title:string,description:?string,deadline:?string,doc_type_name:string,faculty_name:string,file_id:?int,file_name:?string} $submission
+     * @param array{submission_id:int,status:string,current_version:int,submitted_at:?string,updated_at:string,title:string,description:?string,deadline:?string,doc_type_name:string,faculty_name:string,file_id:?int,file_name:?string,faculty_id:int} $submission
      * @param list<array{review_id:int,decision:string,comments:?string,reviewed_at:string,reviewer_name:string}> $history
      * @param array<string,string> $errors
      */

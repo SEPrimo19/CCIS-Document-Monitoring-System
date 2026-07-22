@@ -7,6 +7,9 @@
  * @var string $appName
  */
 $authUser = \App\Core\Auth::user();
+$unreadNotifCount = $authUser !== null
+    ? \App\Models\Notification::unreadCount((int) $authUser['user_id'])
+    : 0;
 ?>
 <!doctype html>
 <html lang="en">
@@ -25,6 +28,12 @@ $authUser = \App\Core\Auth::user();
             </a>
             <?php if ($authUser !== null): ?>
                 <nav class="topbar-nav">
+                    <a class="notif-link" href="<?= url('/notifications') ?>">
+                        Notifications
+                        <?php if ($unreadNotifCount > 0): ?>
+                            <span class="notif-badge"><?= htmlspecialchars((string) $unreadNotifCount) ?></span>
+                        <?php endif; ?>
+                    </a>
                     <span class="who">
                         <?= htmlspecialchars($authUser['first_name'] . ' ' . $authUser['last_name']) ?>
                         <span class="role-pill"><?= htmlspecialchars($authUser['role_name']) ?></span>

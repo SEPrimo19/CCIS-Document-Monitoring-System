@@ -150,7 +150,7 @@ final class Submission
      * no ownership restriction, since any reviewer may act on it (shared
      * queue). Null if the submission doesn't exist.
      *
-     * @return array{submission_id:int,status:string,current_version:int,submitted_at:?string,updated_at:string,title:string,description:?string,deadline:?string,doc_type_name:string,faculty_name:string,file_id:?int,file_name:?string}|null
+     * @return array{submission_id:int,status:string,current_version:int,submitted_at:?string,updated_at:string,title:string,description:?string,deadline:?string,doc_type_name:string,faculty_name:string,file_id:?int,file_name:?string,faculty_id:int}|null
      */
     public static function findForReview(int $submissionId): ?array
     {
@@ -159,7 +159,7 @@ final class Submission
                     r.title, r.description, r.deadline,
                     dt.name AS doc_type_name,
                     CONCAT(u.first_name, ' ', u.last_name) AS faculty_name,
-                    f.file_id, f.file_name
+                    f.file_id, f.file_name, s.faculty_id
              FROM submissions s
              INNER JOIN requirements r ON r.requirement_id = s.requirement_id
              INNER JOIN document_types dt ON dt.doc_type_id = r.doc_type_id

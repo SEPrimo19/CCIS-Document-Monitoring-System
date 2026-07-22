@@ -81,6 +81,7 @@ use App\Controllers\DocumentController;
 use App\Controllers\DocumentTypeController;
 use App\Controllers\FacultyController;
 use App\Controllers\HomeController;
+use App\Controllers\NotificationController;
 use App\Controllers\RequirementController;
 use App\Controllers\ReviewerController;
 use App\Core\Auth;
@@ -141,5 +142,9 @@ $router->get('/reviewer/submissions/{id}/review', [ReviewerController::class, 'r
 $router->post('/reviewer/submissions/{id}/review', [ReviewerController::class, 'decide']);
 
 $router->get('/documents/{id}/download', [DocumentController::class, 'download']);
+
+$router->get('/notifications', [NotificationController::class, 'index']);
+$router->post('/notifications/{id}/read', [NotificationController::class, 'markRead']);
+$router->post('/notifications/read-all', [NotificationController::class, 'markAllRead']);
 
 $router->dispatch($_SERVER['REQUEST_METHOD'] ?? 'GET', $uri);
