@@ -7,9 +7,16 @@
  * @var string $appName
  */
 $authUser = \App\Core\Auth::user();
-$unreadNotifCount = $authUser !== null
-    ? \App\Models\Notification::unreadCount((int) $authUser['user_id'])
-    : 0;
+// Best-effort: errors/500.php includes this partial, so if the exception that
+// triggered the error handler in the first place WAS a DB outage, this query
+// would throw again inside the handler and turn a 500 into a blank page.
+try {
+    $unreadNotifCount = $authUser !== null
+        ? \App\Models\Notification::unreadCount((int) $authUser['user_id'])
+        : 0;
+} catch (\Throwable) {
+    $unreadNotifCount = 0;
+}
 ?>
 <!doctype html>
 <html lang="en">

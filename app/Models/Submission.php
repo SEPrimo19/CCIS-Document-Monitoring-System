@@ -70,6 +70,38 @@ final class Submission
     }
 
     /**
+     * Self-healing backfill for a faculty member who was hired (or reactivated)
+     * AFTER a requirement was published: publishing snapshots
+     * User::activeFacultyIds() at that moment, so a later hire has no
+     * submission row and the requirement is invisible to them. Called at the
+     * start of FacultyController::requirements() so a new hire's checklist
+     * fills in on first visit. INSERT IGNORE + NOT EXISTS make this safe to
+     * call every time (idempotent) — it only ever adds rows for requirements
+     * this faculty member doesn't already have one for. Returns the number of
+     * rows actually inserted.
+     */
+    public static function backfillForFaculty(int $facultyId, int $periodId): int
+    {
+        $stmt = self::pdo()->prepare(
+            "INSERT IGNORE INTO submissions (requirement_id, faculty_id, status, current_version, updated_at)
+             SELECT r.requirement_id, :faculty_id, 'Pending', 0, NOW()
+             FROM requirements r
+             WHERE r.period_id = :period_id
+               AND NOT EXISTS (
+                   SELECT 1 FROM submissions s
+                   WHERE s.requirement_id = r.requirement_id AND s.faculty_id = :faculty_id2
+               )"
+        );
+        $stmt->execute([
+            ':faculty_id'  => $facultyId,
+            ':period_id'   => $periodId,
+            ':faculty_id2' => $facultyId,
+        ]);
+
+        return $stmt->rowCount();
+    }
+
+    /**
      * A faculty member's submissions for a period, joined to the requirement +
      * document type, with the current version's file (if any) for the
      * "My Requirements" checklist (FR-6). `last_comment` is the most recent
@@ -179,20 +211,26 @@ final class Submission
      * 'Submitted'` clause is an atomic concurrency guard: it only ever
      * affects a row that is still awaiting review, so if two reviewers race
      * on the same shared-queue item, only the first UPDATE actually changes
-     * anything. Returns the number of rows affected — the caller must treat
-     * 0 as "someone else already decided this" and roll back rather than
-     * also inserting a reviews row.
+     * anything. The `AND current_version = :expected_version` clause guards a
+     * second race: a reviewer who opened an older version (e.g. it was
+     * returned, faculty re-uploaded a new version, and the submission is
+     * Submitted again before the reviewer's decision lands) must not approve
+     * a version they never actually saw. Returns the number of rows affected
+     * — the caller must treat 0 as "already decided, or the version changed
+     * since this reviewer opened it" and roll back rather than also
+     * inserting a reviews row.
      */
-    public static function markReviewed(int $submissionId, string $newStatus): int
+    public static function markReviewed(int $submissionId, string $newStatus, int $expectedVersion): int
     {
         $stmt = self::pdo()->prepare(
             "UPDATE submissions
              SET status = :status
-             WHERE submission_id = :id AND status = 'Submitted'"
+             WHERE submission_id = :id AND status = 'Submitted' AND current_version = :expected_version"
         );
         $stmt->execute([
-            ':status' => $newStatus,
-            ':id'     => $submissionId,
+            ':status'           => $newStatus,
+            ':id'               => $submissionId,
+            ':expected_version' => $expectedVersion,
         ]);
 
         return $stmt->rowCount();
@@ -242,20 +280,29 @@ final class Submission
 
     /**
      * Record a fresh upload: advance current_version, flip status to
-     * Submitted, and stamp submitted_at. Called inside the same transaction
-     * as the new document_files row (FacultyController::upload()).
+     * Submitted, and stamp submitted_at. Called FIRST inside the same
+     * transaction as the new document_files row (FacultyController::upload()),
+     * before the file row is inserted. The `AND status IN (...)` clause is an
+     * atomic concurrency guard against a double-upload race (TOCTOU): if two
+     * concurrent uploads for the same submission both pass the earlier
+     * findOwned() status check, only the first UPDATE here actually changes
+     * anything. Returns the number of rows affected — the caller must treat 0
+     * as "someone else already uploaded/changed this" and roll back without
+     * inserting a document_files row.
      */
-    public static function markSubmitted(int $submissionId, int $newVersion): void
+    public static function markSubmitted(int $submissionId, int $newVersion): int
     {
         $stmt = self::pdo()->prepare(
             "UPDATE submissions
              SET status = 'Submitted', current_version = :version, submitted_at = NOW()
-             WHERE submission_id = :id"
+             WHERE submission_id = :id AND status IN ('Pending', 'Returned-for-revision')"
         );
         $stmt->execute([
             ':version' => $newVersion,
             ':id'      => $submissionId,
         ]);
+
+        return $stmt->rowCount();
     }
 
     /**
@@ -328,9 +375,13 @@ final class Submission
     /**
      * Count of submissions in a period that are past their requirement's
      * deadline and not yet Approved (FR-20). A NULL deadline never counts as
-     * overdue.
+     * overdue. `$today` is computed by the caller from PHP's `date('Y-m-d')`
+     * and bound rather than compared via SQL `CURDATE()` — the monitoring
+     * matrix and faculty checklist both derive "today" from PHP, so this
+     * must use the same clock or the figures can silently disagree under a
+     * PHP/MySQL timezone skew.
      */
-    public static function overdueCountForPeriod(int $periodId): int
+    public static function overdueCountForPeriod(int $periodId, string $today): int
     {
         $stmt = self::pdo()->prepare(
             "SELECT COUNT(*) AS total
@@ -338,10 +389,10 @@ final class Submission
              INNER JOIN requirements r ON r.requirement_id = s.requirement_id
              WHERE r.period_id = :period_id
                AND r.deadline IS NOT NULL
-               AND r.deadline < CURDATE()
+               AND r.deadline < :today
                AND s.status <> 'Approved'"
         );
-        $stmt->execute([':period_id' => $periodId]);
+        $stmt->execute([':period_id' => $periodId, ':today' => $today]);
 
         return (int) $stmt->fetchColumn();
     }
@@ -351,7 +402,7 @@ final class Submission
      * status} list — the raw material for the admin monitoring matrix
      * (FR-17). The controller/view builds the [faculty_id][requirement_id]
      * lookup and pairs it with Requirement::allForPeriod() columns and
-     * User::activeFaculty() rows.
+     * User::facultyForPeriod() rows.
      *
      * @return list<array{faculty_id:int,requirement_id:int,status:string}>
      */
@@ -431,11 +482,16 @@ final class Submission
 
     /**
      * Per-faculty compliance for a period (FR-24, FR-25 reports): one row per
-     * active Faculty account that has at least one submission in the period,
-     * with a status-count breakdown. Faculty with zero submissions in the
-     * period (e.g. no requirements ever targeted them) are omitted rather
-     * than shown as all-zero rows. The controller/view computes the
-     * compliance percentage (Approved / total).
+     * Faculty account that has at least one submission in the period, with a
+     * status-count breakdown. Deactivated faculty are DELIBERATELY included
+     * (no `u.status = 'active'` filter) so this report always agrees with the
+     * other admin figures on the page (aggregate cards, per-document-type
+     * report, Submission Search) — these reports go to accreditors, and a
+     * deactivated faculty's historical submissions must not silently vanish
+     * from just this one table. Faculty with zero submissions in the period
+     * (e.g. no requirements ever targeted them) are omitted rather than shown
+     * as all-zero rows. The controller/view computes the compliance
+     * percentage (Approved / total).
      *
      * @return list<array{user_id:int,faculty_name:string,total:int,pending:int,submitted:int,approved:int,returned:int}>
      */
@@ -453,7 +509,7 @@ final class Submission
              INNER JOIN requirements r ON r.requirement_id = s.requirement_id
              INNER JOIN users u ON u.user_id = s.faculty_id
              INNER JOIN roles ro ON ro.role_id = u.role_id
-             WHERE r.period_id = :period_id AND u.status = 'active' AND ro.role_name = 'Faculty'
+             WHERE r.period_id = :period_id AND ro.role_name = 'Faculty'
              GROUP BY u.user_id, u.first_name, u.last_name
              ORDER BY u.last_name ASC, u.first_name ASC"
         );

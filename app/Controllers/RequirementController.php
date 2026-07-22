@@ -109,18 +109,26 @@ final class RequirementController extends Controller
 
             $pdo->commit();
         } catch (Throwable $e) {
-            $pdo->rollBack();
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
             throw $e;
         }
 
-        AuditLog::record(
-            $adminId,
-            'requirement_publish',
-            'requirement',
-            $requirementId,
-            $input['title'] . '; ' . $publishedCount . ' faculty',
-            $ip
-        );
+        // Best-effort, post-commit: an audit-log write must never 500 a
+        // requirement that already published successfully.
+        try {
+            AuditLog::record(
+                $adminId,
+                'requirement_publish',
+                'requirement',
+                $requirementId,
+                $input['title'] . '; ' . $publishedCount . ' faculty',
+                $ip
+            );
+        } catch (Throwable $e) {
+            error_log('[CCIS-DMS] audit log write failed for requirement ' . $requirementId . ': ' . $e->getMessage());
+        }
 
         $this->flash('ok', 'Requirement published to ' . $publishedCount . ' faculty.');
         $this->redirectToIndex();

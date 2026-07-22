@@ -128,17 +128,29 @@ final class ReviewerController extends Controller
         // never an empty string.
         $storedComments = $comments === '' ? null : $comments;
 
+        // The hidden `current_version` field round-trips the version this
+        // reviewer actually opened (see review.php) — an invalid/missing
+        // value can never match a real current_version, so it safely falls
+        // through to the same "changed since you opened it" guard below.
+        $currentVersionRaw = (string) ($_POST['current_version'] ?? '');
+        $expectedVersion = ctype_digit($currentVersionRaw) ? (int) $currentVersionRaw : -1;
+
         $pdo = Database::connection($this->config()['db']);
         $pdo->beginTransaction();
 
         try {
-            $affected = Submission::markReviewed($submissionId, $decision);
+            $affected = Submission::markReviewed($submissionId, $decision, $expectedVersion);
 
             if ($affected === 0) {
-                // Lost the race: another reviewer already decided this
-                // shared-queue item between our page load and this submit.
-                $pdo->rollBack();
-                $this->flash('err', 'This submission has already been reviewed.');
+                // Lost the race: either another reviewer already decided this
+                // shared-queue item, or faculty uploaded a new version after
+                // this reviewer opened it (so they'd be deciding on a version
+                // they never saw) — either way, between our page load and
+                // this submit.
+                if ($pdo->inTransaction()) {
+                    $pdo->rollBack();
+                }
+                $this->flash('err', 'This submission changed since you opened it. Please review it again.');
                 $this->redirectToQueue();
                 return;
             }
@@ -147,7 +159,9 @@ final class ReviewerController extends Controller
 
             $pdo->commit();
         } catch (Throwable $e) {
-            $pdo->rollBack();
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
             throw $e;
         }
 
@@ -167,15 +181,21 @@ final class ReviewerController extends Controller
             error_log('[CCIS-DMS] notification create failed for submission ' . $submissionId . ': ' . $e->getMessage());
         }
 
-        $detail = $submission['title'] . ($storedComments !== null ? '; ' . mb_substr($storedComments, 0, 120) : '');
-        AuditLog::record(
-            $reviewerId,
-            $decision === 'Approved' ? 'approve' : 'return',
-            'submission',
-            $submissionId,
-            $detail,
-            $ip
-        );
+        // Best-effort, post-commit: an audit-log write must never 500 a
+        // decision that already succeeded.
+        try {
+            $detail = $submission['title'] . ($storedComments !== null ? '; ' . mb_substr($storedComments, 0, 120) : '');
+            AuditLog::record(
+                $reviewerId,
+                $decision === 'Approved' ? 'approve' : 'return',
+                'submission',
+                $submissionId,
+                $detail,
+                $ip
+            );
+        } catch (Throwable $e) {
+            error_log('[CCIS-DMS] audit log write failed for submission ' . $submissionId . ': ' . $e->getMessage());
+        }
 
         $this->flash('ok', $decision === 'Approved' ? 'Document approved.' : 'Document returned for revision.');
         $this->redirectToQueue();

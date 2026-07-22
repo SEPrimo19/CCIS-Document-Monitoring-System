@@ -73,6 +73,7 @@ $canDecide = $submission['status'] === 'Submitted';
     <?php if ($canDecide): ?>
         <form method="post" action="<?= url('/reviewer/submissions/' . $submission['submission_id'] . '/review') ?>" class="decision-form">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+            <input type="hidden" name="current_version" value="<?= (int) $submission['current_version'] ?>">
 
             <div class="field">
                 <label>Decision</label>

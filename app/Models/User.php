@@ -91,6 +91,39 @@ final class User
         return $stmt->fetchAll();
     }
 
+    /**
+     * {user_id, first_name, last_name} for the monitoring matrix's row axis
+     * (FR-17): every Faculty account that is either currently active OR has
+     * at least one submission in this period. This lets a faculty member
+     * deactivated mid-period keep appearing in the matrix (with their
+     * historical submissions) instead of the matrix silently dropping them
+     * while other admin figures on the same page still count them — see
+     * complianceByFaculty(). Distinct, ordered by last_name then first_name.
+     *
+     * @return list<array{user_id:int,first_name:string,last_name:string}>
+     */
+    public static function facultyForPeriod(int $periodId): array
+    {
+        $stmt = self::pdo()->prepare(
+            "SELECT DISTINCT u.user_id, u.first_name, u.last_name
+             FROM users u
+             INNER JOIN roles r ON r.role_id = u.role_id
+             WHERE r.role_name = 'Faculty'
+               AND (
+                    u.status = 'active'
+                    OR EXISTS (
+                        SELECT 1 FROM submissions s
+                        INNER JOIN requirements req ON req.requirement_id = s.requirement_id
+                        WHERE s.faculty_id = u.user_id AND req.period_id = :period_id
+                    )
+               )
+             ORDER BY u.last_name ASC, u.first_name ASC"
+        );
+        $stmt->execute([':period_id' => $periodId]);
+
+        return $stmt->fetchAll();
+    }
+
     public static function touchLastLogin(int $userId): void
     {
         $stmt = self::pdo()->prepare('UPDATE users SET last_login = NOW() WHERE user_id = :id');

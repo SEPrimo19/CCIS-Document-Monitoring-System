@@ -102,7 +102,7 @@ final class AdminController extends Controller
             'period'       => $period,
             'figures'      => $this->figuresForPeriod($periodId),
             'requirements' => Requirement::allForPeriod($periodId),
-            'faculty'      => User::activeFaculty(),
+            'faculty'      => User::facultyForPeriod($periodId),
             'grid'         => $this->gridLookup($periodId),
             'docTypes'     => $docTypes,
             'statuses'     => Submission::statuses(),
@@ -257,7 +257,7 @@ final class AdminController extends Controller
             'statusCounts'   => $statusCounts,
             'total'          => $total,
             'complianceRate' => $complianceRate,
-            'overdueCount'   => Submission::overdueCountForPeriod($periodId),
+            'overdueCount'   => Submission::overdueCountForPeriod($periodId, date('Y-m-d')),
         ];
     }
 

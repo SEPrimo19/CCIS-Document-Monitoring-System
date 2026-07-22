@@ -16,7 +16,7 @@ final class Database
     /**
      * Connection to the application database.
      *
-     * @param array{host:string,port:string,name:string,user:string,pass:string,charset:string} $cfg
+     * @param array{host:string,port:string,name:string,user:string,pass:string,charset:string,timezone_offset:string} $cfg
      */
     public static function connection(array $cfg): PDO
     {
@@ -33,6 +33,11 @@ final class Database
                 PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
                 PDO::ATTR_EMULATE_PREPARES   => false,
+                // Keep the MySQL session clock in sync with PHP's configured
+                // timezone (config/config.php) so date/time comparisons never
+                // straddle a clock skew between the app server and the DB
+                // server. The offset comes from config, never from user input.
+                PDO::MYSQL_ATTR_INIT_COMMAND => "SET time_zone = '" . $cfg['timezone_offset'] . "'",
             ]);
         }
 

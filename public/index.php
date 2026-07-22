@@ -49,6 +49,12 @@ define('BASE_URL', $base === '/' ? '' : $base);
 
 /* --- Env / debug detection drives error display and cookie hardening --- */
 $config = require BASE_PATH . '/config/config.php';
+
+/* --- One configured timezone drives BOTH PHP and MySQL (see Database::connection())
+ * so date/time comparisons never straddle a clock skew between the two. Must run
+ * before any date/session use. --- */
+date_default_timezone_set($config['app']['timezone']);
+
 $isProduction = $config['app']['env'] === 'production' || $config['app']['debug'] === false;
 
 ini_set('log_errors', '1');

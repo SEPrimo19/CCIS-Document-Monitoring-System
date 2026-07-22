@@ -36,7 +36,7 @@ $periodLabel = $period !== null
     <form method="get" action="<?= url('/reviewer/queue') ?>" class="filter-form">
         <div class="field">
             <label for="doc_type_id">Document type</label>
-            <select id="doc_type_id" name="doc_type_id" onchange="this.form.submit()">
+            <select id="doc_type_id" name="doc_type_id">
                 <option value="">All document types</option>
                 <?php foreach ($docTypes as $type): ?>
                     <option value="<?= (int) $type['doc_type_id'] ?>" <?= $selectedDocTypeId === (int) $type['doc_type_id'] ? 'selected' : '' ?>>
@@ -45,7 +45,7 @@ $periodLabel = $period !== null
                 <?php endforeach; ?>
             </select>
         </div>
-        <noscript><button type="submit" class="btn-sm btn-secondary">Filter</button></noscript>
+        <button type="submit" class="btn-sm btn-primary-sm">Filter</button>
     </form>
 
     <div class="table-wrap">

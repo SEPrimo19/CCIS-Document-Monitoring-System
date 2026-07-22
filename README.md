@@ -27,8 +27,10 @@ ccis-dms/
 
 ## Setup (local, XAMPP)
 1. Start **Apache** and **MySQL** in the XAMPP Control Panel.
-2. (Optional) copy `.env.example` to `.env` and adjust credentials. Defaults match XAMPP
-   (`root` / no password / database `ccis_dms`).
+2. Copy `.env.example` to `.env` for local development, and adjust credentials if needed.
+   Defaults match XAMPP (`root` / no password / database `ccis_dms`). Without a `.env`
+   file (or with `APP_ENV` unset/anything other than `development`), the app now
+   defaults to the hardened production posture — see `docs/SECURITY.md`.
 3. Create the database, then create the tables and seed data (roles, document types,
    a sample academic period, and a default admin):
    ```

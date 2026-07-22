@@ -42,13 +42,19 @@ final class LoginAttempt
 
     public static function record(string $email, string $ip, bool $success): void
     {
+        // attempted_at is stamped explicitly from PHP (rather than left to
+        // MySQL's DEFAULT CURRENT_TIMESTAMP) so the write always uses the
+        // same clock as recentFailureCount()'s PHP-computed cutoff, whatever
+        // the DB server's own clock/timezone happens to be.
         $stmt = self::pdo()->prepare(
-            'INSERT INTO login_attempts (email, ip_address, success) VALUES (:email, :ip, :success)'
+            'INSERT INTO login_attempts (email, ip_address, success, attempted_at)
+             VALUES (:email, :ip, :success, :attempted_at)'
         );
         $stmt->execute([
-            ':email'   => $email,
-            ':ip'      => $ip,
-            ':success' => $success ? 1 : 0,
+            ':email'        => $email,
+            ':ip'           => $ip,
+            ':success'      => $success ? 1 : 0,
+            ':attempted_at' => date('Y-m-d H:i:s'),
         ]);
     }
 

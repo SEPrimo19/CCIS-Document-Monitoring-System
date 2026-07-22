@@ -122,6 +122,7 @@ CREATE TABLE document_files (
     file_size     INT          NOT NULL,
     version_no    INT          NOT NULL,
     uploaded_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_file_sub_version (submission_id, version_no),
     KEY idx_file_sub (submission_id),
     KEY idx_file_uploader (uploaded_by),
     CONSTRAINT fk_file_sub  FOREIGN KEY (submission_id) REFERENCES submissions(submission_id) ON DELETE CASCADE,

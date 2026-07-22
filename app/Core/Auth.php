@@ -39,9 +39,12 @@ final class Auth
 
         ini_set('session.use_strict_mode', '1');
 
-        $config = require dirname(__DIR__, 2) . '/config/config.php';
-        $isProduction = $config['app']['env'] === 'production' || $config['app']['debug'] === false;
-        $secure = $isProduction || !empty($_SERVER['HTTPS']);
+        // Secure depends ONLY on the actual transport, never on the env/debug
+        // flags: now that production is the default posture (config/config.php),
+        // deriving it from $isProduction would set Secure on plain-HTTP
+        // localhost and break login entirely. Production-over-HTTPS still gets
+        // Secure; the deployment doc (docs/SECURITY.md) already requires HTTPS.
+        $secure = !empty($_SERVER['HTTPS']);
 
         session_set_cookie_params([
             'lifetime' => 0,
