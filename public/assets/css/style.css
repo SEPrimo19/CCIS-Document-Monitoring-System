@@ -608,3 +608,20 @@ body {
 
 .notif-meta { margin: 0; font-size: .8rem; color: var(--muted); }
 .notif-meta a { color: var(--brand); }
+
+/* --- Audit log (FR-30, FR-31) --- */
+.action-label {
+    display: inline-block;
+    font-size: .78rem;
+    font-weight: 600;
+    color: var(--brand);
+    background: var(--info-bg);
+    padding: .1rem .5rem;
+    border-radius: 6px;
+}
+
+.ip-address {
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    font-size: .85rem;
+    color: var(--muted);
+}

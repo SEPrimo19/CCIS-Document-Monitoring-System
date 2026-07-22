@@ -53,6 +53,7 @@ $unreadNotifCount = $authUser !== null
                 <a href="<?= url('/admin/document-types') ?>">Document Types</a>
                 <a href="<?= url('/admin/requirements') ?>">Requirements</a>
                 <a href="<?= url('/admin/monitoring') ?>">Monitoring</a>
+                <a href="<?= url('/admin/audit-log') ?>">Audit Log</a>
             </div>
         </nav>
     <?php endif; ?>

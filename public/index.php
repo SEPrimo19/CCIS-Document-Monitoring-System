@@ -133,6 +133,7 @@ $router->get('/admin/requirements/new', [RequirementController::class, 'create']
 $router->post('/admin/requirements', [RequirementController::class, 'store']);
 
 $router->get('/admin/monitoring', [AdminController::class, 'monitoring']);
+$router->get('/admin/audit-log', [AdminController::class, 'auditLog']);
 
 $router->get('/faculty/requirements', [FacultyController::class, 'requirements']);
 $router->post('/faculty/submissions/{id}/upload', [FacultyController::class, 'upload']);

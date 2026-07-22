@@ -8,19 +8,24 @@ use App\Core\Auth;
 use App\Core\Controller;
 use App\Core\Guard;
 use App\Models\AcademicPeriod;
+use App\Models\AuditLog;
 use App\Models\DocumentType;
 use App\Models\Requirement;
 use App\Models\Submission;
 use App\Models\User;
+use DateTime;
 
 /**
- * Administrator landing + monitoring board (FR-17..FR-20). All figures and
- * the monitoring board are scoped to the single active academic period —
- * cross-period/archive views are a later slice. Other feature areas (user
- * accounts, reports, audit log) are built out later in Phase 4.
+ * Administrator landing, monitoring board (FR-17..FR-20), and the audit log
+ * view (FR-30, FR-31). All monitoring figures/board are scoped to the single
+ * active academic period — cross-period/archive views are a later slice. User
+ * accounts and reports are built out later in Phase 4.
  */
 final class AdminController extends Controller
 {
+    /** Row cap for the audit log view (FR-31) — newest N entries. */
+    private const AUDIT_LOG_LIMIT = 200;
+
     public function dashboard(): void
     {
         Guard::requireRole('Administrator');
@@ -85,6 +90,41 @@ final class AdminController extends Controller
                 'doc_type_id'  => $docTypeFilter,
             ],
             'results'      => Submission::searchForPeriod($periodId, $facultyNameFilter, $statusFilter, $docTypeFilter),
+        ]);
+    }
+
+    /**
+     * Admin-only, read-only audit trail view (FR-30, FR-31): every
+     * audit_log row, newest first, filterable by actor, action, and date
+     * range. The log itself is append-only — this action never writes to
+     * audit_log, it only reads from it.
+     */
+    public function auditLog(): void
+    {
+        Guard::requireRole('Administrator');
+
+        $actors = AuditLog::distinctActors();
+        $actions = AuditLog::distinctActions();
+
+        $userIdFilter = $this->userIdFilterFrom($_GET, $actors);
+        $actionFilter = $this->actionFilterFrom($_GET, $actions);
+        $dateFromFilter = $this->dateFilterFrom($_GET, 'date_from');
+        $dateToFilter = $this->dateFilterFrom($_GET, 'date_to');
+
+        $limit = self::AUDIT_LOG_LIMIT;
+
+        $this->view('admin/audit/index', [
+            'appName' => $this->config()['app']['name'],
+            'entries' => AuditLog::search($userIdFilter, $actionFilter, $dateFromFilter, $dateToFilter, $limit),
+            'actors'  => $actors,
+            'actions' => $actions,
+            'filters' => [
+                'user_id'   => $userIdFilter,
+                'action'    => $actionFilter ?? '',
+                'date_from' => $dateFromFilter ?? '',
+                'date_to'   => $dateToFilter ?? '',
+            ],
+            'limit'   => $limit,
         ]);
     }
 
@@ -181,5 +221,62 @@ final class AdminController extends Controller
         $validIds = array_map(static fn(array $type): int => (int) $type['doc_type_id'], $activeDocTypes);
 
         return in_array($id, $validIds, true) ? $id : null;
+    }
+
+    /**
+     * The `user_id` GET filter for the audit log (FR-31), validated against
+     * the users who actually appear in the log. Null when absent, non-numeric,
+     * or not one of those actor ids.
+     *
+     * @param array<string,mixed> $query
+     * @param list<array{user_id:int,actor_name:string}> $actors
+     */
+    private function userIdFilterFrom(array $query, array $actors): ?int
+    {
+        $raw = trim((string) ($query['user_id'] ?? ''));
+        if ($raw === '' || !ctype_digit($raw)) {
+            return null;
+        }
+
+        $id = (int) $raw;
+        $validIds = array_map(static fn(array $actor): int => (int) $actor['user_id'], $actors);
+
+        return in_array($id, $validIds, true) ? $id : null;
+    }
+
+    /**
+     * The `action` GET filter for the audit log (FR-31), validated against
+     * the distinct actions actually present in the log. Null when absent or
+     * not a recognized action.
+     *
+     * @param array<string,mixed> $query
+     * @param list<string> $actions
+     */
+    private function actionFilterFrom(array $query, array $actions): ?string
+    {
+        $raw = trim((string) ($query['action'] ?? ''));
+
+        return in_array($raw, $actions, true) ? $raw : null;
+    }
+
+    /**
+     * A `date_from`/`date_to` GET filter for the audit log (FR-31), strictly
+     * validated as YYYY-MM-DD (round-trip check via DateTime::createFromFormat,
+     * same approach as RequirementController's deadline validation). Null when
+     * absent, blank, or not a well-formed calendar date.
+     *
+     * @param array<string,mixed> $query
+     */
+    private function dateFilterFrom(array $query, string $key): ?string
+    {
+        $raw = trim((string) ($query[$key] ?? ''));
+        if ($raw === '') {
+            return null;
+        }
+
+        $date = DateTime::createFromFormat('Y-m-d', $raw);
+        $isValidFormat = $date !== false && $date->format('Y-m-d') === $raw;
+
+        return $isValidFormat ? $raw : null;
     }
 }
