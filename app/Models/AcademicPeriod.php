@@ -49,6 +49,24 @@ final class AcademicPeriod
         return $row === false ? null : $row;
     }
 
+    /**
+     * Every academic period, newest first — powers the reports period
+     * selector (FR-24, FR-25), where an administrator may pull a report for
+     * any period, not just the currently active one.
+     *
+     * @return list<array{period_id:int,school_year:string,semester:string,label:?string,is_active:int}>
+     */
+    public static function all(): array
+    {
+        $stmt = self::pdo()->query(
+            'SELECT period_id, school_year, semester, label, is_active
+             FROM academic_periods
+             ORDER BY is_active DESC, school_year DESC, semester DESC'
+        );
+
+        return $stmt->fetchAll();
+    }
+
     private static function pdo(): PDO
     {
         static $config = null;

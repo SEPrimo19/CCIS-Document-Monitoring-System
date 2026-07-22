@@ -429,6 +429,69 @@ final class Submission
         return $stmt->fetchAll();
     }
 
+    /**
+     * Per-faculty compliance for a period (FR-24, FR-25 reports): one row per
+     * active Faculty account that has at least one submission in the period,
+     * with a status-count breakdown. Faculty with zero submissions in the
+     * period (e.g. no requirements ever targeted them) are omitted rather
+     * than shown as all-zero rows. The controller/view computes the
+     * compliance percentage (Approved / total).
+     *
+     * @return list<array{user_id:int,faculty_name:string,total:int,pending:int,submitted:int,approved:int,returned:int}>
+     */
+    public static function complianceByFaculty(int $periodId): array
+    {
+        $stmt = self::pdo()->prepare(
+            "SELECT u.user_id,
+                    CONCAT(u.first_name, ' ', u.last_name) AS faculty_name,
+                    COUNT(*) AS total,
+                    SUM(CASE WHEN s.status = 'Pending' THEN 1 ELSE 0 END) AS pending,
+                    SUM(CASE WHEN s.status = 'Submitted' THEN 1 ELSE 0 END) AS submitted,
+                    SUM(CASE WHEN s.status = 'Approved' THEN 1 ELSE 0 END) AS approved,
+                    SUM(CASE WHEN s.status = 'Returned-for-revision' THEN 1 ELSE 0 END) AS returned
+             FROM submissions s
+             INNER JOIN requirements r ON r.requirement_id = s.requirement_id
+             INNER JOIN users u ON u.user_id = s.faculty_id
+             INNER JOIN roles ro ON ro.role_id = u.role_id
+             WHERE r.period_id = :period_id AND u.status = 'active' AND ro.role_name = 'Faculty'
+             GROUP BY u.user_id, u.first_name, u.last_name
+             ORDER BY u.last_name ASC, u.first_name ASC"
+        );
+        $stmt->execute([':period_id' => $periodId]);
+
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Per-document-type completion for a period (FR-24, FR-25 reports): one
+     * row per document type actually used by the period's requirements, with
+     * a status-count breakdown. Document types with no requirements in the
+     * period are omitted. The controller/view computes the completion
+     * percentage (Approved / total).
+     *
+     * @return list<array{doc_type_id:int,doc_type_name:string,total:int,pending:int,submitted:int,approved:int,returned:int}>
+     */
+    public static function completionByDocumentType(int $periodId): array
+    {
+        $stmt = self::pdo()->prepare(
+            "SELECT dt.doc_type_id, dt.name AS doc_type_name,
+                    COUNT(*) AS total,
+                    SUM(CASE WHEN s.status = 'Pending' THEN 1 ELSE 0 END) AS pending,
+                    SUM(CASE WHEN s.status = 'Submitted' THEN 1 ELSE 0 END) AS submitted,
+                    SUM(CASE WHEN s.status = 'Approved' THEN 1 ELSE 0 END) AS approved,
+                    SUM(CASE WHEN s.status = 'Returned-for-revision' THEN 1 ELSE 0 END) AS returned
+             FROM submissions s
+             INNER JOIN requirements r ON r.requirement_id = s.requirement_id
+             INNER JOIN document_types dt ON dt.doc_type_id = r.doc_type_id
+             WHERE r.period_id = :period_id
+             GROUP BY dt.doc_type_id, dt.name
+             ORDER BY dt.name ASC"
+        );
+        $stmt->execute([':period_id' => $periodId]);
+
+        return $stmt->fetchAll();
+    }
+
     /** The submissions.status ENUM values, in schema order. */
     private const STATUSES = ['Pending', 'Submitted', 'Approved', 'Returned-for-revision'];
 

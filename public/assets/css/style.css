@@ -625,3 +625,70 @@ body {
     font-size: .85rem;
     color: var(--muted);
 }
+
+/* --- Reports page (FR-24, FR-25): CSV download links + print-only title.
+   The title area is hidden on screen (the on-screen heading already shows
+   it) and shown only in the print/PDF output, once the topbar's branding
+   is hidden. --- */
+.csv-links { margin: .5rem 0 2rem; }
+.print-only { display: none; }
+
+@media print {
+    /* Anything only useful on screen: navigation, the period selector, and
+       every button/CSV link — none of it belongs on a printed report. */
+    .topbar,
+    .subnav,
+    .filter-form,
+    .csv-links,
+    button,
+    .btn-sm,
+    .btn-primary,
+    .btn-primary-sm,
+    .btn-secondary,
+    .btn-danger,
+    .btn-inline {
+        display: none !important;
+    }
+
+    .print-only { display: block; margin: 0 0 1rem; font-weight: 700; }
+
+    body { background: #fff; color: #000; }
+    .wrap { max-width: none; margin: 0; padding: 0; }
+    .page-head { margin: 0 0 1rem; }
+    .page-head .sub, .muted-note, .detail { color: #000; }
+
+    .badge { background: #fff; color: #000; border: 1px solid #000; }
+
+    .cards { display: block; }
+    .card {
+        display: inline-block;
+        width: 30%;
+        vertical-align: top;
+        margin: 0 1.5% .5rem 0;
+        border: 1px solid #000;
+        box-shadow: none;
+        background: #fff;
+        break-inside: avoid;
+    }
+    .card.ok, .card.err { background: #fff; }
+    .card h2, .card .status, .card .detail { color: #000; }
+
+    .section-title { color: #000; break-after: avoid; }
+
+    .table-wrap { border: 1px solid #000; box-shadow: none; overflow: visible; }
+    .table { font-size: .85rem; }
+    .table th, .table td {
+        border: 1px solid #000;
+        color: #000;
+        white-space: normal;
+    }
+    .table thead th { background: #fff; }
+    .table tbody tr { break-inside: avoid; }
+    .table tbody tr:hover { background: #fff; }
+
+    .status-pill { border: 1px solid #000; background: #fff !important; color: #000 !important; }
+
+    .alert { border: 1px solid #000; background: #fff; color: #000; }
+
+    a { color: #000; text-decoration: none; }
+}

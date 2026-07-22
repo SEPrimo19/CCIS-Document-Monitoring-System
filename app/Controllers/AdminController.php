@@ -16,15 +16,37 @@ use App\Models\User;
 use DateTime;
 
 /**
- * Administrator landing, monitoring board (FR-17..FR-20), and the audit log
- * view (FR-30, FR-31). All monitoring figures/board are scoped to the single
- * active academic period — cross-period/archive views are a later slice. User
- * accounts and reports are built out later in Phase 4.
+ * Administrator landing, monitoring board (FR-17..FR-20), the audit log view
+ * (FR-30, FR-31), and the reports + CSV export view (FR-24, FR-25). The
+ * monitoring board is scoped to the single active academic period; reports,
+ * unlike monitoring, let the administrator pick any academic period. User
+ * accounts are built out later in Phase 4.
  */
 final class AdminController extends Controller
 {
     /** Row cap for the audit log view (FR-31) — newest N entries. */
     private const AUDIT_LOG_LIMIT = 200;
+
+    /**
+     * CSV report kinds accepted by exportCsv(), each with its filename slug
+     * (used ONLY with the numeric period id to build the download filename —
+     * never the period label or other user-supplied text, to avoid
+     * header-injection) and its header row.
+     */
+    private const CSV_REPORTS = [
+        'faculty' => [
+            'slug'   => 'faculty-compliance',
+            'header' => ['Faculty', 'Total', 'Pending', 'Submitted', 'Approved', 'Returned', 'Compliance %'],
+        ],
+        'doctype' => [
+            'slug'   => 'doctype-completion',
+            'header' => ['Document Type', 'Total', 'Pending', 'Submitted', 'Approved', 'Returned', 'Completion %'],
+        ],
+        'status' => [
+            'slug'   => 'status-summary',
+            'header' => ['Status', 'Count'],
+        ],
+    ];
 
     public function dashboard(): void
     {
@@ -129,6 +151,96 @@ final class AdminController extends Controller
     }
 
     /**
+     * Admin reports (FR-24, FR-25): a period selector (any period, not just
+     * the active one), the overall status summary + compliance rate, the
+     * per-faculty compliance breakdown, and the per-document-type completion
+     * breakdown. Each table is also exportable as CSV via exportCsv(), and
+     * the whole page is printable (browser Print / Save-as-PDF). Read-only.
+     */
+    public function reports(): void
+    {
+        Guard::requireRole('Administrator');
+
+        $periods = AcademicPeriod::all();
+        $periodId = $this->periodIdFilterFrom($_GET, $periods);
+
+        if ($periodId === null) {
+            $active = AcademicPeriod::active();
+            $periodId = $active !== null ? (int) $active['period_id'] : null;
+        }
+
+        $period = $periodId !== null ? $this->findPeriodInList($periods, $periodId) : null;
+
+        if ($period === null) {
+            $this->view('admin/reports/index', [
+                'appName'           => $this->config()['app']['name'],
+                'periods'           => $periods,
+                'period'            => null,
+                'figures'           => null,
+                'facultyCompliance' => [],
+                'docTypeCompletion' => [],
+            ]);
+            return;
+        }
+
+        $periodId = (int) $period['period_id'];
+
+        $this->view('admin/reports/index', [
+            'appName'           => $this->config()['app']['name'],
+            'periods'           => $periods,
+            'period'            => $period,
+            'figures'           => $this->figuresForPeriod($periodId),
+            'facultyCompliance' => Submission::complianceByFaculty($periodId),
+            'docTypeCompletion' => Submission::completionByDocumentType($periodId),
+        ]);
+    }
+
+    /**
+     * Admin-only CSV export for the Reports page (FR-25): faculty
+     * compliance, document-type completion, or the overall status summary,
+     * selected via the `report` GET param. `period_id` is validated the same
+     * way as reports() — anything invalid (missing/non-numeric/unknown period,
+     * or an unrecognized `report` value) renders the branded 404 rather than
+     * guessing what was meant. GET, read-only — no CSRF needed (mirrors the
+     * monitoring/audit search forms). Streams the CSV to php://output and
+     * exits without rendering the app layout.
+     */
+    public function exportCsv(): void
+    {
+        Guard::requireRole('Administrator');
+
+        $periods = AcademicPeriod::all();
+        $periodId = $this->periodIdFilterFrom($_GET, $periods);
+        $report = $this->reportKindFrom($_GET);
+
+        if ($periodId === null || $report === null) {
+            $this->notFoundPage();
+            return;
+        }
+
+        $meta = self::CSV_REPORTS[$report];
+
+        // Filename is built ONLY from the fixed report slug + numeric period
+        // id — never the period label or any other user-supplied text — so
+        // there is nothing here an attacker could use for a header-injection
+        // payload via the Content-Disposition header.
+        $filename = sprintf('ccis-dms-%s-period-%d.csv', $meta['slug'], $periodId);
+
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+
+        $out = fopen('php://output', 'wb');
+        fputcsv($out, $meta['header']);
+
+        foreach ($this->csvRowsFor($report, $periodId) as $row) {
+            fputcsv($out, $row);
+        }
+
+        fclose($out);
+        exit;
+    }
+
+    /**
      * Period-level figures shared by the dashboard summary and the
      * monitoring board's stat cards (FR-18): status counts, total
      * submissions, compliance rate, and overdue count.
@@ -224,6 +336,123 @@ final class AdminController extends Controller
     }
 
     /**
+     * The `period_id` GET filter shared by reports() and exportCsv(),
+     * validated against the FULL period list (every period, not just the
+     * active one — an administrator may pull a report for a past period).
+     * Null when absent, non-numeric, or not a real period id.
+     *
+     * @param array<string,mixed> $query
+     * @param list<array{period_id:int,school_year:string,semester:string,label:?string,is_active:int}> $periods
+     */
+    private function periodIdFilterFrom(array $query, array $periods): ?int
+    {
+        $raw = trim((string) ($query['period_id'] ?? ''));
+        if ($raw === '' || !ctype_digit($raw)) {
+            return null;
+        }
+
+        $id = (int) $raw;
+
+        return $this->findPeriodInList($periods, $id) !== null ? $id : null;
+    }
+
+    /**
+     * @param list<array{period_id:int,school_year:string,semester:string,label:?string,is_active:int}> $periods
+     * @return array{period_id:int,school_year:string,semester:string,label:?string,is_active:int}|null
+     */
+    private function findPeriodInList(array $periods, int $id): ?array
+    {
+        foreach ($periods as $candidate) {
+            if ((int) $candidate['period_id'] === $id) {
+                return $candidate;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * The `report` GET param for exportCsv(), validated against the known CSV
+     * report kinds (self::CSV_REPORTS). Null when absent or not exactly one
+     * of 'faculty' | 'doctype' | 'status' — the caller renders a 404 rather
+     * than guessing which report was meant.
+     *
+     * @param array<string,mixed> $query
+     */
+    private function reportKindFrom(array $query): ?string
+    {
+        $raw = trim((string) ($query['report'] ?? ''));
+
+        return array_key_exists($raw, self::CSV_REPORTS) ? $raw : null;
+    }
+
+    /**
+     * The CSV data rows (header row is added separately by exportCsv()) for
+     * one of the three report kinds, percentages computed the same way as
+     * the view (Approved / total, 0 when total = 0).
+     *
+     * @return list<list<int|string>>
+     */
+    private function csvRowsFor(string $report, int $periodId): array
+    {
+        if ($report === 'faculty') {
+            return array_map(
+                static function (array $row): array {
+                    $total = (int) $row['total'];
+
+                    return [
+                        $row['faculty_name'],
+                        $total,
+                        (int) $row['pending'],
+                        (int) $row['submitted'],
+                        (int) $row['approved'],
+                        (int) $row['returned'],
+                        self::percentOf((int) $row['approved'], $total),
+                    ];
+                },
+                Submission::complianceByFaculty($periodId)
+            );
+        }
+
+        if ($report === 'doctype') {
+            return array_map(
+                static function (array $row): array {
+                    $total = (int) $row['total'];
+
+                    return [
+                        $row['doc_type_name'],
+                        $total,
+                        (int) $row['pending'],
+                        (int) $row['submitted'],
+                        (int) $row['approved'],
+                        (int) $row['returned'],
+                        self::percentOf((int) $row['approved'], $total),
+                    ];
+                },
+                Submission::completionByDocumentType($periodId)
+            );
+        }
+
+        // 'status'
+        $rows = [];
+        foreach ($this->figuresForPeriod($periodId)['statusCounts'] as $status => $count) {
+            $rows[] = [$status, $count];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * A percentage, guarded against division by zero — the same shape as
+     * figuresForPeriod()'s complianceRate, reused here for the per-row
+     * compliance/completion percentages (FR-24, FR-25).
+     */
+    private static function percentOf(int $numerator, int $denominator): int
+    {
+        return $denominator > 0 ? (int) round($numerator / $denominator * 100) : 0;
+    }
+
+    /**
      * The `user_id` GET filter for the audit log (FR-31), validated against
      * the users who actually appear in the log. Null when absent, non-numeric,
      * or not one of those actor ids.
@@ -278,5 +507,11 @@ final class AdminController extends Controller
         $isValidFormat = $date !== false && $date->format('Y-m-d') === $raw;
 
         return $isValidFormat ? $raw : null;
+    }
+
+    private function notFoundPage(): void
+    {
+        http_response_code(404);
+        $this->view('errors/404', ['appName' => $this->config()['app']['name']]);
     }
 }

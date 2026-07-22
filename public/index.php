@@ -134,6 +134,12 @@ $router->post('/admin/requirements', [RequirementController::class, 'store']);
 
 $router->get('/admin/monitoring', [AdminController::class, 'monitoring']);
 $router->get('/admin/audit-log', [AdminController::class, 'auditLog']);
+$router->get('/admin/reports', [AdminController::class, 'reports']);
+// Extension-less on purpose: PHP's built-in dev server (php -S) serves any URI
+// that "specifies a file" straight from disk and only falls back to index.php
+// for extension-less paths, so /admin/reports/export.csv would 404 before ever
+// reaching the app. The downloaded filename comes from Content-Disposition.
+$router->get('/admin/reports/export', [AdminController::class, 'exportCsv']);
 
 $router->get('/faculty/requirements', [FacultyController::class, 'requirements']);
 $router->post('/faculty/submissions/{id}/upload', [FacultyController::class, 'upload']);

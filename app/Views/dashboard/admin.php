@@ -88,14 +88,14 @@ require __DIR__ . '/../partials/header.php';
 
     <article class="card">
         <h2>Reports</h2>
-        <p class="detail">Compliance and status reports, exportable to PDF (FR-24, FR-25).</p>
-        <p class="status muted">Coming in Phase 4</p>
+        <p class="detail">Compliance and status reports, exportable to CSV or Print / Save as PDF (FR-24, FR-25).</p>
+        <p class="status muted"><a href="<?= url('/admin/reports') ?>" class="card-link">Open reports &rarr;</a></p>
     </article>
 
     <article class="card">
         <h2>Audit Log</h2>
         <p class="detail">Admin-only record of key actions across the system (FR-30, FR-31).</p>
-        <p class="status muted">Coming in Phase 4</p>
+        <p class="status muted"><a href="<?= url('/admin/audit-log') ?>" class="card-link">Open audit log &rarr;</a></p>
     </article>
 </section>
 <?php require __DIR__ . '/../partials/footer.php'; ?>

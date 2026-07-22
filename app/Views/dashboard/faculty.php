@@ -48,7 +48,7 @@ require __DIR__ . '/../partials/header.php';
     <article class="card">
         <h2>My Submissions</h2>
         <p class="detail">Status and last-updated date for each submission (FR-9); resubmit returned items (FR-10).</p>
-        <p class="status muted">Coming in Phase 4</p>
+        <p class="status muted"><a href="<?= url('/faculty/requirements') ?>" class="card-link">View my requirements &rarr;</a></p>
     </article>
 </section>
 <?php require __DIR__ . '/../partials/footer.php'; ?>
