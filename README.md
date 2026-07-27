@@ -39,6 +39,22 @@ Open <http://localhost:8000> and sign in as `secretary@nwssu.edu.ph` /
 `Secretary@123`. A fresh database has no requirements yet, so start there:
 **Requirements → New requirement**.
 
+## 🚀 Putting it on a real server
+
+**[DEPLOYMENT.md](DEPLOYMENT.md)** covers hosting the system for actual use by
+the College: choosing a host, pointing the document root at `public/`, HTTPS,
+creating real accounts, a least-privilege database user, backups, and a
+go-live checklist. Do not deploy from the local-setup instructions above —
+their defaults are convenient, not safe.
+
+## Documentation
+
+| Document | What it is for |
+|---|---|
+| [SETUP.md](SETUP.md) | Running the system on your own computer |
+| [DEPLOYMENT.md](DEPLOYMENT.md) | Hosting it on a real server |
+| [docs/SECURITY.md](docs/SECURITY.md) | Security posture, review findings, hardening reference |
+
 ---
 
 ## Structure
