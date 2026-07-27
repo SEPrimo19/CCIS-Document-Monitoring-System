@@ -10,7 +10,7 @@ use PDO;
 /**
  * reviews table access — one row per reviewer decision (Approve / Return-for-
  * revision) on a submission (FR-13, FR-14). Review routing is a SHARED QUEUE:
- * any Reviewer/Approver may act on any Submitted item, so there is no
+ * the Secretary may act on any Submitted item, so there is no
  * per-reviewer assignment or ownership check here. reviews.comments is a
  * nullable TEXT column, so an approval with no comment is stored as NULL
  * (never an empty string) — see ReviewerController::decide().

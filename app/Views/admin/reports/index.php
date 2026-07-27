@@ -25,7 +25,7 @@ $csvUrl = static function (string $report, int $periodId): string {
 ?>
 <section class="page-head">
     <div>
-        <span class="badge">Administrator</span>
+        <span class="badge">Secretary</span>
         <h1>Reports<?= $periodLabel !== null ? ' — ' . htmlspecialchars($periodLabel) : '' ?></h1>
         <p class="sub">Compliance and completion reports for an academic period, exportable to CSV or Print / Save as PDF (FR-24, FR-25).</p>
     </div>

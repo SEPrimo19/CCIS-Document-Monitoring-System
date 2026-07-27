@@ -15,7 +15,7 @@ $isEdit = $docType !== null;
 $action = $isEdit ? url('/admin/document-types/' . $docType['doc_type_id']) : url('/admin/document-types');
 ?>
 <section class="form-card">
-    <span class="badge">Administrator</span>
+    <span class="badge">Secretary</span>
     <h1><?= $isEdit ? 'Edit document type' : 'New document type' ?></h1>
 
     <?php if (!empty($errors['_csrf'])): ?>

@@ -14,7 +14,7 @@ $periodLabel = $period !== null
 ?>
 <section class="page-head">
     <div>
-        <span class="badge">Administrator</span>
+        <span class="badge">Secretary</span>
         <h1>Requirements<?= $periodLabel !== null ? ' — ' . htmlspecialchars($periodLabel) : '' ?></h1>
         <p class="sub">Define a requirement and publish it to all faculty for the active academic period (FR-28).</p>
     </div>

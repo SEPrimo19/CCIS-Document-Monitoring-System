@@ -11,7 +11,7 @@ require __DIR__ . '/../../partials/header.php';
 ?>
 <section class="page-head">
     <div>
-        <span class="badge">Administrator</span>
+        <span class="badge">Secretary</span>
         <h1>Audit Log</h1>
         <p class="sub">Every recorded system action, newest first (FR-30, FR-31). The log is append-only — entries are never edited or deleted through the app — so it stands as the accountability trail.</p>
     </div>

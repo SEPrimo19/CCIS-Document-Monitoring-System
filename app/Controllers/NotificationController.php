@@ -25,10 +25,20 @@ final class NotificationController extends Controller
         unset($_SESSION['flash']);
 
         $userId = (int) (Auth::user()['user_id'] ?? 0);
+        $filter = (($_GET['filter'] ?? '') === 'unread') ? 'unread' : 'all';
 
+        // Both tab counts come from COUNT(*) over the whole table, and the
+        // unread tab from its own query — never from filtering the capped page
+        // below, which would make these disagree with the header badge once a
+        // user has more than the page limit of notifications.
         $this->view('notifications/index', [
             'appName'       => $this->config()['app']['name'],
-            'notifications' => Notification::forUser($userId),
+            'notifications' => $filter === 'unread'
+                ? Notification::unreadForUser($userId)
+                : Notification::forUser($userId),
+            'filter'        => $filter,
+            'totalCount'    => Notification::countForUser($userId),
+            'unreadCount'   => Notification::unreadCount($userId),
             'flash'         => $flash,
             'csrf'          => Csrf::token(),
         ]);
@@ -41,14 +51,24 @@ final class NotificationController extends Controller
         $token = (string) ($_POST['csrf_token'] ?? '');
         if (!Csrf::verify($token)) {
             $this->flash('err', 'Your session has expired. Please try again.');
-            $this->redirectToIndex();
+            $this->redirectToIndex($this->postedFilter());
             return;
         }
 
         $userId = (int) (Auth::user()['user_id'] ?? 0);
         Notification::markRead((int) $id, $userId);
 
-        $this->redirectToIndex();
+        $this->redirectToIndex($this->postedFilter());
+    }
+
+    /**
+     * The tab the user acted from, round-tripped through a hidden field so
+     * marking an item read on the "Unread" tab returns there instead of
+     * silently bouncing the user back to "All".
+     */
+    private function postedFilter(): string
+    {
+        return (($_POST['filter'] ?? '') === 'unread') ? 'unread' : 'all';
     }
 
     public function markAllRead(): void
@@ -58,7 +78,7 @@ final class NotificationController extends Controller
         $token = (string) ($_POST['csrf_token'] ?? '');
         if (!Csrf::verify($token)) {
             $this->flash('err', 'Your session has expired. Please try again.');
-            $this->redirectToIndex();
+            $this->redirectToIndex($this->postedFilter());
             return;
         }
 
@@ -66,7 +86,7 @@ final class NotificationController extends Controller
         Notification::markAllRead($userId);
 
         $this->flash('ok', 'All notifications marked as read.');
-        $this->redirectToIndex();
+        $this->redirectToIndex($this->postedFilter());
     }
 
     private function flash(string $type, string $message): void
@@ -74,9 +94,9 @@ final class NotificationController extends Controller
         $_SESSION['flash'] = ['type' => $type, 'message' => $message];
     }
 
-    private function redirectToIndex(): void
+    private function redirectToIndex(string $filter = 'all'): void
     {
-        header('Location: ' . url('/notifications'));
+        header('Location: ' . url('/notifications' . ($filter === 'unread' ? '?filter=unread' : '')));
         exit;
     }
 }

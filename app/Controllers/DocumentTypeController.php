@@ -20,7 +20,7 @@ final class DocumentTypeController extends Controller
 {
     public function index(): void
     {
-        Guard::requireRole('Administrator');
+        Guard::requireRole('Secretary');
 
         $flash = $_SESSION['flash'] ?? null;
         unset($_SESSION['flash']);
@@ -35,14 +35,14 @@ final class DocumentTypeController extends Controller
 
     public function create(): void
     {
-        Guard::requireRole('Administrator');
+        Guard::requireRole('Secretary');
 
         $this->renderForm(null, '', '', []);
     }
 
     public function store(): void
     {
-        Guard::requireRole('Administrator');
+        Guard::requireRole('Secretary');
 
         [$name, $description] = $this->inputFrom($_POST);
         $token = (string) ($_POST['csrf_token'] ?? '');
@@ -70,7 +70,7 @@ final class DocumentTypeController extends Controller
 
     public function edit(string $id): void
     {
-        Guard::requireRole('Administrator');
+        Guard::requireRole('Secretary');
 
         $type = DocumentType::find((int) $id);
         if ($type === null) {
@@ -83,7 +83,7 @@ final class DocumentTypeController extends Controller
 
     public function update(string $id): void
     {
-        Guard::requireRole('Administrator');
+        Guard::requireRole('Secretary');
 
         $docTypeId = (int) $id;
         $type = DocumentType::find($docTypeId);
@@ -118,14 +118,14 @@ final class DocumentTypeController extends Controller
 
     public function deactivate(string $id): void
     {
-        Guard::requireRole('Administrator');
+        Guard::requireRole('Secretary');
 
         $this->toggleActive($id, false, 'doc_type_deactivate');
     }
 
     public function activate(string $id): void
     {
-        Guard::requireRole('Administrator');
+        Guard::requireRole('Secretary');
 
         $this->toggleActive($id, true, 'doc_type_activate');
     }

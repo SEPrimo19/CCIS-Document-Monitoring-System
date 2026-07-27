@@ -15,9 +15,8 @@ use App\Core\Guard;
 final class DashboardController extends Controller
 {
     private const LANDING = [
-        'Administrator'     => '/admin/dashboard',
-        'Reviewer/Approver' => '/reviewer/dashboard',
-        'Faculty'           => '/faculty/dashboard',
+        'Secretary' => '/admin/dashboard',
+        'Faculty'   => '/faculty/dashboard',
     ];
 
     public function index(): void

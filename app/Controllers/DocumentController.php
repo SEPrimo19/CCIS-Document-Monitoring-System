@@ -29,10 +29,16 @@ final class DocumentController extends Controller
         $user = Auth::user();
         $role = $user['role_name'] ?? '';
         $isOwningFaculty = $role === 'Faculty' && (int) $file['faculty_id'] === (int) ($user['user_id'] ?? 0);
-        $canAccess = in_array($role, ['Administrator', 'Reviewer/Approver'], true) || $isOwningFaculty;
+        $canAccess = $role === 'Secretary' || $isOwningFaculty;
 
         if (!$canAccess) {
-            $this->forbiddenPage();
+            // 404, not 403, for a faculty member requesting a file that isn't
+            // theirs: a 403 would confirm the file id EXISTS (an enumeration
+            // oracle), while a nonexistent id already 404s above. Returning the
+            // same 404 for both makes existing and forbidden ids indistinguish-
+            // able — matching the anti-enumeration stance of the /submissions
+            // detail route.
+            $this->notFoundPage();
             return;
         }
 
@@ -57,11 +63,5 @@ final class DocumentController extends Controller
     {
         http_response_code(404);
         $this->view('errors/404', ['appName' => $this->config()['app']['name']]);
-    }
-
-    private function forbiddenPage(): void
-    {
-        http_response_code(403);
-        $this->view('errors/403', ['appName' => $this->config()['app']['name']]);
     }
 }

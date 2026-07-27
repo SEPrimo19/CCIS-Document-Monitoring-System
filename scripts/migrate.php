@@ -5,13 +5,33 @@ declare(strict_types=1);
 /**
  * Rebuilds the CCIS-DMS schema, seeds reference data, and creates a default admin.
  *
- * DESTRUCTIVE (development): drops and recreates all tables.
- * Usage:  php scripts/migrate.php
+ * DESTRUCTIVE: drops and recreates all tables, wiping every submission,
+ * uploaded-file record, notification, and audit-log entry.
+ *
+ * Usage:  php scripts/migrate.php [--force]
+ *
+ * Refuses to run outside development unless --force is passed, so that running
+ * it on a live installation is always a deliberate act. Note APP_ENV defaults
+ * to production when unset (see config/config.php) — the safe direction.
  */
 
+require dirname(__DIR__) . '/config/env.php';
 $config = require dirname(__DIR__) . '/config/config.php';
 $db  = $config['db'];
 $dir = dirname(__DIR__) . '/database';
+
+$forced = in_array('--force', $argv ?? [], true);
+if ($config['app']['env'] !== 'development' && !$forced) {
+    fwrite(STDERR, "REFUSED: migrate.php drops and recreates every table, and APP_ENV is '{$config['app']['env']}'.\n");
+    fwrite(STDERR, "Database: {$db['name']} on {$db['host']}:{$db['port']} as {$db['user']}.\n");
+    fwrite(STDERR, "For local development set APP_ENV=development in .env.\n");
+    fwrite(STDERR, "To wipe this database anyway, re-run with --force.\n");
+    exit(1);
+}
+
+if ($forced && $config['app']['env'] !== 'development') {
+    fwrite(STDERR, "WARNING: --force given outside development — wiping {$db['name']} on {$db['host']}.\n");
+}
 
 /**
  * Execute a .sql file one statement at a time (avoids PDO multi-statement quirks).
@@ -37,12 +57,12 @@ try {
     run_sql_file($pdo, $dir . '/seed.sql');
     echo "seed:   reference data inserted (roles, document types, academic period)\n";
 
-    // Default administrator (password hashed here, never stored in SQL).
-    // Password comes from ADMIN_PASSWORD (env/config); defaults to Admin@123
-    // for local dev — see README for how to override it.
-    $adminEmail = 'admin@nwssu.edu.ph';
-    $adminPass  = getenv('ADMIN_PASSWORD') ?: 'Admin@123';
-    $roleId = (int) $pdo->query("SELECT role_id FROM roles WHERE role_name = 'Administrator'")->fetchColumn();
+    // Default Secretary account (password hashed here, never stored in SQL).
+    // Password comes from SECRETARY_PASSWORD (env/config); defaults to
+    // Secretary@123 for local dev — see README for how to override it.
+    $adminEmail = 'secretary@nwssu.edu.ph';
+    $adminPass  = getenv('SECRETARY_PASSWORD') ?: 'Secretary@123';
+    $roleId = (int) $pdo->query("SELECT role_id FROM roles WHERE role_name = 'Secretary'")->fetchColumn();
 
     $stmt = $pdo->prepare(
         'INSERT INTO users (role_id, employee_no, first_name, last_name, email, password_hash, program_dept, status)
@@ -50,31 +70,14 @@ try {
     );
     $stmt->execute([
         ':role' => $roleId,
-        ':emp'  => 'ADMIN-001',
-        ':fn'   => 'System',
-        ':ln'   => 'Administrator',
+        ':emp'  => 'SEC-001',
+        ':fn'   => 'College',
+        ':ln'   => 'Secretary',
         ':em'   => $adminEmail,
         ':ph'   => password_hash($adminPass, PASSWORD_BCRYPT),
         ':dept' => 'CCIS',
     ]);
-    echo "admin:  created ({$adminEmail}) — password set from ADMIN_PASSWORD env var (dev default: Admin@123); change after first login\n";
-
-    // Dev Reviewer/Approver account (Phase 4a.2), so the review workflow has
-    // someone to sign in as without hand-inserting a row.
-    $reviewerEmail = 'reviewer@nwssu.edu.ph';
-    $reviewerPass  = getenv('REVIEWER_PASSWORD') ?: 'Reviewer@123';
-    $reviewerRoleId = (int) $pdo->query("SELECT role_id FROM roles WHERE role_name = 'Reviewer/Approver'")->fetchColumn();
-
-    $stmt->execute([
-        ':role' => $reviewerRoleId,
-        ':emp'  => 'REV-001',
-        ':fn'   => 'Marites',
-        ':ln'   => 'Bautista',
-        ':em'   => $reviewerEmail,
-        ':ph'   => password_hash($reviewerPass, PASSWORD_BCRYPT),
-        ':dept' => 'CCIS',
-    ]);
-    echo "reviewer: created ({$reviewerEmail}) — password set from REVIEWER_PASSWORD env var (dev default: Reviewer@123)\n";
+    echo "secretary: created ({$adminEmail}) — password set from SECRETARY_PASSWORD env var (dev default: Secretary@123); change after first login\n";
 
     // Dev Faculty accounts, so eagerly-generated Pending submissions (FR-28)
     // have real accounts to land against.

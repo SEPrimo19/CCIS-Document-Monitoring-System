@@ -4,9 +4,11 @@
 # Environment / secrets
 /.env
 
-# Uploaded documents (keep the folder, ignore its contents)
-/public/uploads/*
-!/public/uploads/.gitkeep
+# Uploaded documents live in storage/uploads/ — OUTSIDE the web root — and that
+# folder carries its own .gitignore ("*" except itself), so uploaded files are
+# never committed while the directory itself survives a clone.
+# (There is deliberately no public/uploads/: serving uploads from inside the web
+# root is exactly what storage/uploads/ exists to avoid.)
 
 # Logs & OS cruft
 *.log

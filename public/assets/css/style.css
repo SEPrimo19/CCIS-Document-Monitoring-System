@@ -66,8 +66,17 @@ body {
 
 .cards {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    /* auto-FILL, not auto-fit: auto-fit collapses the empty tracks in a
+       partially-filled row, so a lone card left over on the last row (e.g. the
+       4th KPI card at some widths) would stretch to the full grid width and
+       read as a different, larger component. auto-fill keeps the empty tracks,
+       so every card stays the same width as its neighbours above. */
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
     gap: 1rem;
+    /* Vertical rhythm so stacked sections (e.g. dashboard KPI grid + feature
+       grid, or a card grid above a table) never butt directly against each
+       other. Block-margin collapse keeps the gap a consistent 1.5rem. */
+    margin-bottom: 1.5rem;
 }
 
 .card {
@@ -87,6 +96,45 @@ body {
 .card.ok .status { color: var(--ok); }
 .card.err { border-left-color: var(--err); background: var(--err-bg); }
 .card.err .status { color: var(--err); }
+
+/* --- Dashboard status-distribution bar (inline SVG; CSP-safe, no inline styles) --- */
+.status-dist { margin: 0 0 1.5rem; }
+.status-bar {
+    width: 100%;
+    height: 1.15rem;
+    display: block;
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--border);
+    border: 1px solid var(--border);
+}
+.status-bar rect.seg-pending   { fill: var(--muted); }
+.status-bar rect.seg-submitted { fill: var(--info); }
+.status-bar rect.seg-approved  { fill: var(--ok); }
+.status-bar rect.seg-returned  { fill: var(--err); }
+
+.status-legend {
+    list-style: none;
+    margin: .6rem 0 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: .4rem 1.25rem;
+    font-size: .85rem;
+}
+.legend-item { display: flex; align-items: center; gap: .4rem; }
+.legend-swatch {
+    width: .7rem;
+    height: .7rem;
+    border-radius: 3px;
+    flex-shrink: 0;
+    display: inline-block;
+}
+.legend-swatch.seg-pending   { background: var(--muted); }
+.legend-swatch.seg-submitted { background: var(--info); }
+.legend-swatch.seg-approved  { background: var(--ok); }
+.legend-swatch.seg-returned  { background: var(--err); }
+.legend-pct { color: var(--muted); }
 
 .foot { margin-top: 2.5rem; text-align: center; color: var(--muted); font-size: .85rem; }
 .foot code { background: var(--border); padding: .1rem .35rem; border-radius: 4px; }
@@ -120,7 +168,19 @@ body {
 
 .topbar-nav { display: flex; align-items: center; gap: 1rem; }
 
-.who { font-size: .85rem; color: var(--muted); display: flex; align-items: center; gap: .5rem; }
+/* Now an <a> to /profile, not a <span>. There is no site-wide anchor reset, so
+   without these it would carry the UA's permanent underline and give no hover
+   feedback — every other topbar link (.notif-link, .logout-btn) uses exactly
+   this idiom instead. .role-pill inside keeps its own colour. */
+.who {
+    font-size: .85rem;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    text-decoration: none;
+}
+.who:hover { color: var(--brand); text-decoration: underline; }
 
 .role-pill {
     display: inline-block;
@@ -174,7 +234,8 @@ body {
 .auth-form { text-align: left; }
 
 .field { margin-bottom: 1rem; }
-.field label { display: block; font-size: .85rem; font-weight: 600; margin-bottom: .3rem; }
+.field label,
+.field-label { display: block; font-size: .85rem; font-weight: 600; margin-bottom: .3rem; }
 .field input {
     width: 100%;
     padding: .55rem .7rem;
@@ -228,6 +289,18 @@ body {
 .dash-hero { text-align: center; margin: 1rem 0 2rem; }
 .dash-hero h1 { margin: .5rem 0 .25rem; font-size: 1.6rem; }
 .dash-hero .sub { margin: 0; color: var(--muted); font-size: .9rem; }
+/* Which academic period the figures below belong to — every role dashboard
+   shows counts scoped to the active period, so every role dashboard says so. */
+.dash-period {
+    display: inline-block;
+    margin: .6rem 0 0;
+    padding: .2rem .6rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    font-size: .78rem;
+    font-weight: 600;
+    color: var(--muted);
+}
 
 .card .status.muted { color: var(--muted); font-size: .85rem; font-weight: 600; }
 
@@ -247,6 +320,12 @@ body {
 }
 
 .subnav-inner {
+    /* The administrator subnav is nine links. Without wrapping, flex would
+       shrink them below their content width at tablet sizes and break labels
+       mid-phrase ("Document / Types"); wrapping onto a second row keeps every
+       label intact. */
+    flex-wrap: wrap;
+    row-gap: .35rem;
     max-width: 900px;
     margin: 0 auto;
     padding: .5rem 1.25rem;
@@ -316,14 +395,21 @@ body {
 
 .inline-form { display: inline; margin: 0; }
 
-/* --- Inline upload form (faculty checklist Action column) --- */
+/* --- Inline upload form (faculty checklist Action column) ---
+   inline-flex, not flex: this form sits as one of several siblings (Download,
+   Details) inside a normal-flow .table-actions cell. A block-level flex
+   container would force a line break before/after itself and push the other
+   action buttons onto their own line; inline-flex keeps the file input +
+   Upload button laid out as a row internally while the box itself still
+   flows inline next to its sibling buttons. */
 .upload-form {
-    display: flex;
+    display: inline-flex;
     flex-direction: row;
     flex-wrap: wrap;
     align-items: center;
     gap: .4rem;
     margin: 0;
+    vertical-align: middle;
 }
 
 .upload-form input[type="file"] {
@@ -347,6 +433,13 @@ body {
     text-align: left;
     border-bottom: 1px solid var(--border);
     white-space: nowrap;
+    /* Every cell gets a definite vertical alignment so a row with mixed
+       content heights (e.g. a wrapped two-line Description next to a
+       single-line Actions cell) still lines up on one shared baseline
+       instead of each cell defaulting to `vertical-align: baseline`.
+       .matrix-table th overrides this back to `bottom` further down, for its
+       own multi-line column headers. */
+    vertical-align: middle;
 }
 .table th:nth-child(2), .table td:nth-child(2) { white-space: normal; }
 .table thead th {
@@ -359,7 +452,26 @@ body {
 .table tbody tr:last-child td { border-bottom: none; }
 .table tbody tr:hover { background: var(--bg); }
 .table-empty { text-align: center; color: var(--muted); white-space: normal; }
-.table-actions { display: flex; gap: .5rem; align-items: center; white-space: nowrap; }
+/* The Actions cell used to be `display: flex`, which takes a <td> out of
+   normal table-cell layout entirely: a flex cell aligns its box to the top
+   of the row, ignoring `vertical-align`, while its sibling cells (plain text
+   nodes) stay baseline/middle-aligned per normal cell rules — that mismatch
+   is what made the action buttons sit visibly higher than the rest of the
+   row. Keeping this a normal table cell means it inherits `vertical-align:
+   middle` from `.table td` above, so it centers exactly like every other
+   cell. Its children (links, <form class="inline-form">, the upload form)
+   are already inline / inline-block / inline-flex, so they still sit
+   side by side; the `> * + *` rule below replaces the old flexbox `gap` with
+   ordinary margins since normal inline flow has no `gap` property. */
+.table-actions {
+    white-space: nowrap;
+}
+.table-actions > * {
+    vertical-align: middle;
+}
+.table-actions > * + * {
+    margin-left: .5rem;
+}
 
 /* --- Status pill --- */
 .status-pill {
@@ -406,6 +518,13 @@ body {
     box-shadow: var(--shadow);
 }
 .form-card h1 { margin: .75rem 0 1.25rem; font-size: 1.3rem; }
+/* The profile page stacks two form-cards, each headed by an h2 rather than the
+   badge + h1 every single-card page uses. Without this the UA default renders
+   those h2s LARGER than the h1 titles on every other form screen. */
+.form-card h2 { margin: 0 0 1.25rem; font-size: 1.3rem; }
+/* Keep the app's 1.5rem vertical rhythm between stacked cards; .form-card sets
+   no bottom margin, so two in a row would otherwise sit 1rem apart. */
+.form-card + .form-card { margin-top: 1.5rem; }
 
 .form-card textarea {
     width: 100%;
@@ -456,7 +575,12 @@ body {
 
 .meta-list {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    /* auto-FILL for the same reason as .cards: auto-fit collapses the empty
+       tracks on a partially-filled last row, so a metadata list whose item
+       count is not a multiple of the column count (the document-detail page
+       has 8 items over 3 columns) would stretch its final entries to full
+       width and read as a different kind of field. */
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
     gap: .9rem 1.5rem;
     margin: 0 0 1rem;
 }
@@ -609,6 +733,93 @@ body {
 .notif-meta { margin: 0; font-size: .8rem; color: var(--muted); }
 .notif-meta a { color: var(--brand); }
 
+/* --- Notification filter tabs (All / Unread) --- */
+.notif-tabs { display: flex; gap: .5rem; margin: 0 0 1rem; }
+.notif-tab {
+    font-size: .85rem;
+    font-weight: 600;
+    color: var(--muted);
+    text-decoration: none;
+    padding: .35rem .8rem;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+}
+.notif-tab:hover { color: var(--brand); }
+.notif-tab.active { color: #fff; background: var(--brand); border-color: var(--brand); }
+
+/* --- Notification severity category tag (approval vs returned vs reminder).
+   Text label + colour so the urgency cue is not colour-only. --- */
+.notif-cat {
+    display: inline-block;
+    font-size: .65rem;
+    font-weight: 700;
+    letter-spacing: .03em;
+    text-transform: uppercase;
+    padding: .1rem .45rem;
+    border-radius: 999px;
+    white-space: nowrap;
+}
+.notif-cat-approved { color: var(--ok); background: var(--ok-bg); }
+.notif-cat-action   { color: var(--err); background: var(--err-bg); }
+.notif-cat-reminder { color: var(--info); background: var(--info-bg); }
+.notif-cat-update   { color: var(--muted); background: var(--border); }
+
+/* --- Responsive stacked table (narrow screens) — opt-in via .table--stack.
+   Used by the faculty checklist so each requirement reads as a labelled card
+   on a phone. Data tables that must stay tabular (e.g. the monitoring matrix)
+   simply do not take this class. Pure CSS, no JS. --- */
+@media (max-width: 640px) {
+    .table--stack thead {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+    }
+    .table--stack,
+    .table--stack tbody,
+    .table--stack tr,
+    .table--stack td { display: block; width: 100%; }
+    .table--stack tr { border-bottom: 1px solid var(--border); padding: .35rem 0; }
+    .table--stack tbody tr:last-child { border-bottom: none; }
+    .table--stack td {
+        border-bottom: none;
+        white-space: normal;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        gap: .35rem 1rem;
+        padding: .3rem .9rem;
+    }
+    .table--stack td::before {
+        content: attr(data-label);
+        font-weight: 700;
+        font-size: .7rem;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        color: var(--muted);
+        flex-shrink: 0;
+    }
+    /* The reviewer's comment on a returned item is prose, not a value to sit
+       opposite its label — give it its own full-width line under the pill
+       instead of letting space-between squeeze it into a narrow column. */
+    .table--stack td .review-comment-note { flex-basis: 100%; margin: .25rem 0 0; }
+    /* Same reasoning for a secondary line under a cell's main value (the
+       period list's "2026-2027 · 1st" subtitle): without a full-width basis,
+       space-between spreads label / value / subtitle across one line instead
+       of putting the subtitle underneath. */
+    .table--stack td .muted-note { flex-basis: 100%; margin: .2rem 0 0; }
+    .table--stack td.table-actions { display: block; }
+    .table--stack td.table-actions::before { display: block; margin-bottom: .35rem; }
+    /* Full-width cells (the "no rows yet" placeholder) span every column, so
+       they have no single column to be labelled with — without this they'd
+       render an empty bold ::before box above the message. */
+    .table--stack td[colspan] { display: block; }
+    .table--stack td[colspan]::before { content: none; }
+}
+
 /* --- Audit log (FR-30, FR-31) --- */
 .action-label {
     display: inline-block;
@@ -631,6 +842,21 @@ body {
    it) and shown only in the print/PDF output, once the topbar's branding
    is hidden. --- */
 .csv-links { margin: .5rem 0 2rem; }
+/* Visible to screen readers only — used to disambiguate link text that repeats
+   once per table row ("Details", "Download") so it is meaningful out of
+   context. Same clip technique as the .table--stack sr-only thead. */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
 .print-only { display: none; }
 
 @media print {

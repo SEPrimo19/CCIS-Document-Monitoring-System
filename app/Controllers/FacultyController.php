@@ -12,7 +12,9 @@ use App\Core\Guard;
 use App\Models\AcademicPeriod;
 use App\Models\AuditLog;
 use App\Models\DocumentFile;
+use App\Models\Notification;
 use App\Models\Submission;
+use App\Models\User;
 use finfo;
 use Throwable;
 use ZipArchive;
@@ -54,6 +56,11 @@ final class FacultyController extends Controller
         $user = Auth::user();
         $facultyId = (int) ($user['user_id'] ?? 0);
         $period = AcademicPeriod::active();
+
+        if ($period !== null) {
+            $this->generateReminders($facultyId, (int) $period['period_id']);
+        }
+
         $counts = $period !== null
             ? Submission::statusCountsForFaculty($facultyId, (int) $period['period_id'])
             : ['Pending' => 0, 'Submitted' => 0, 'Approved' => 0, 'Returned-for-revision' => 0];
@@ -61,6 +68,7 @@ final class FacultyController extends Controller
         $this->view('dashboard/faculty', [
             'appName' => $this->config()['app']['name'],
             'user'    => $user,
+            'period'  => $period,
             'counts'  => $counts,
         ]);
     }
@@ -85,6 +93,10 @@ final class FacultyController extends Controller
             } catch (Throwable $e) {
                 error_log('[CCIS-DMS] requirement backfill failed for faculty ' . $facultyId . ': ' . $e->getMessage());
             }
+
+            // Runs AFTER the backfill so a newly-created Pending row can raise
+            // its own deadline reminder on the very same page load.
+            $this->generateReminders($facultyId, (int) $period['period_id']);
         }
 
         $checklist = $period !== null
@@ -206,6 +218,25 @@ final class FacultyController extends Controller
             throw $e;
         }
 
+        // Best-effort, post-commit: tell the Secretary something is waiting
+        // (FR-21). The queue is shared, so every active Secretary is notified
+        // rather than one assignee. Must never undo a stored upload.
+        try {
+            $reviewerIds = User::activeSecretaryIds();
+            if ($reviewerIds !== []) {
+                Notification::createForMany(
+                    $reviewerIds,
+                    $submissionId,
+                    'status_change',
+                    $wasReturned ? 'Document resubmitted for review' : 'New document awaiting review',
+                    mb_substr('"' . $submission['title'] . '" was ' . ($wasReturned ? 'resubmitted' : 'submitted')
+                        . ' and is waiting in the review queue.', 0, 255)
+                );
+            }
+        } catch (Throwable $e) {
+            error_log('[CCIS-DMS] reviewer notification failed for submission ' . $submissionId . ': ' . $e->getMessage());
+        }
+
         // Best-effort, post-commit: an audit-log write must never 500 an
         // upload that already succeeded (e.g. a long original filename could
         // otherwise exceed audit_log.details under strict SQL mode).
@@ -224,6 +255,27 @@ final class FacultyController extends Controller
 
         $this->flash('ok', 'Uploaded — status is now Submitted.');
         $this->redirectToRequirements();
+    }
+
+    /**
+     * Raise any due deadline / overdue reminders for this faculty member
+     * (FR-21). Called on the faculty landing screens because the system has no
+     * scheduler; the generators are idempotent per submission per day, so
+     * calling them on every page load produces at most one reminder each.
+     *
+     * Best-effort by design: a reminder is a convenience, and a failure here
+     * must never stop a faculty member from seeing their checklist.
+     */
+    private function generateReminders(int $facultyId, int $periodId): void
+    {
+        $today = date('Y-m-d');
+
+        try {
+            Notification::generateDeadlineReminders($facultyId, $periodId, $today);
+            Notification::generateOverdueReminders($facultyId, $periodId, $today);
+        } catch (Throwable $e) {
+            error_log('[CCIS-DMS] reminder generation failed for faculty ' . $facultyId . ': ' . $e->getMessage());
+        }
     }
 
     /**

@@ -162,6 +162,26 @@ final class Auth
     }
 
     /**
+     * Update the signed-in user's name and email in the session after they
+     * edit their own profile (FR-5), so the header greeting and every
+     * `Auth::user()` read reflect the change immediately rather than staying
+     * stale until the next login.
+     *
+     * Role is deliberately not a parameter — it is not self-editable, and
+     * refreshRole() remains the only way it changes.
+     */
+    public static function refreshIdentity(string $firstName, string $lastName, string $email): void
+    {
+        if (!isset($_SESSION[self::SESSION_KEY])) {
+            return;
+        }
+
+        $_SESSION[self::SESSION_KEY]['first_name'] = $firstName;
+        $_SESSION[self::SESSION_KEY]['last_name'] = $lastName;
+        $_SESSION[self::SESSION_KEY]['email'] = $email;
+    }
+
+    /**
      * End the session: clear identity data, drop the session cookie, and destroy
      * the server-side session record.
      */

@@ -8,12 +8,246 @@ use App\Core\Database;
 use PDO;
 
 /**
- * users table finders. Read-only helpers needed by Auth; account management
- * (create/edit/deactivate/reset credentials — FR-26) is added with the Admin
- * user-management feature in Phase 4.
+ * users table access. Read-only finders needed by Auth/Guard sit alongside the
+ * Admin user-management CRUD (create/edit/deactivate/reactivate, role
+ * assignment — FR-26). Deactivation is a soft-delete via status, never a row
+ * delete, since audit_log and submissions reference user_id.
  */
 final class User
 {
+    /**
+     * Every user account — active AND inactive, since accreditation reports
+     * need historical accounts — joined to role name, for the admin
+     * user-management list. Active accounts sort first, then alphabetically
+     * by name.
+     *
+     * @return list<array{user_id:int,first_name:string,last_name:string,email:string,role_id:int,role_name:string,status:string,created_at:string}>
+     */
+    public static function all(): array
+    {
+        $stmt = self::pdo()->query(
+            "SELECT u.user_id, u.first_name, u.last_name, u.email, u.role_id, r.role_name, u.status, u.created_at
+             FROM users u
+             INNER JOIN roles r ON r.role_id = u.role_id
+             ORDER BY (u.status = 'active') DESC, u.last_name ASC, u.first_name ASC"
+        );
+
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * One user, with role_id/role_name, for the edit form.
+     *
+     * @return array{user_id:int,first_name:string,last_name:string,email:string,role_id:int,role_name:string,status:string}|null
+     */
+    public static function find(int $id): ?array
+    {
+        $stmt = self::pdo()->prepare(
+            'SELECT u.user_id, u.first_name, u.last_name, u.email, u.role_id, r.role_name, u.status
+             FROM users u
+             INNER JOIN roles r ON r.role_id = u.role_id
+             WHERE u.user_id = :id
+             LIMIT 1'
+        );
+        $stmt->execute([':id' => $id]);
+        $row = $stmt->fetch();
+
+        return $row === false ? null : $row;
+    }
+
+    /**
+     * Insert a new, active user account. Returns the new user_id. The caller
+     * is responsible for normalizing the email (Auth::normalizeEmail) and
+     * hashing the password (password_hash(..., PASSWORD_BCRYPT)) — this
+     * method never receives or stores a plaintext password.
+     */
+    public static function create(string $firstName, string $lastName, string $email, int $roleId, string $passwordHash): int
+    {
+        $stmt = self::pdo()->prepare(
+            "INSERT INTO users (role_id, first_name, last_name, email, password_hash, status)
+             VALUES (:role_id, :first_name, :last_name, :email, :password_hash, 'active')"
+        );
+        $stmt->execute([
+            ':role_id'       => $roleId,
+            ':first_name'    => $firstName,
+            ':last_name'     => $lastName,
+            ':email'         => $email,
+            ':password_hash' => $passwordHash,
+        ]);
+
+        return (int) self::pdo()->lastInsertId();
+    }
+
+    /**
+     * Update a user's profile fields (name, email, role). Password changes go
+     * through updatePasswordHash() instead, since edit leaves the password
+     * untouched unless the admin supplies a new one.
+     */
+    public static function updateProfile(int $id, string $firstName, string $lastName, string $email, int $roleId): void
+    {
+        $stmt = self::pdo()->prepare(
+            'UPDATE users
+             SET first_name = :first_name, last_name = :last_name, email = :email, role_id = :role_id
+             WHERE user_id = :id'
+        );
+        $stmt->execute([
+            ':first_name' => $firstName,
+            ':last_name'  => $lastName,
+            ':email'      => $email,
+            ':role_id'    => $roleId,
+            ':id'         => $id,
+        ]);
+    }
+
+    /**
+     * Soft-delete: flips status active/inactive. A deactivated account is
+     * rejected immediately by Guard::requireAuth() on its next request (and by
+     * Auth::attempt() on its next login attempt) — never a row delete.
+     */
+    public static function setActive(int $id, bool $active): void
+    {
+        $stmt = self::pdo()->prepare('UPDATE users SET status = :status WHERE user_id = :id');
+        $stmt->execute([
+            ':status' => $active ? 'active' : 'inactive',
+            ':id'     => $id,
+        ]);
+    }
+
+    /**
+     * Case-insensitive uniqueness check (email is already normalized to
+     * lowercase before being stored, but this stays defensive regardless),
+     * optionally excluding the row being edited.
+     */
+    public static function existsByEmail(string $email, ?int $exceptId = null): bool
+    {
+        $sql = 'SELECT 1 FROM users WHERE LOWER(email) = LOWER(:email)';
+        $params = [':email' => $email];
+
+        if ($exceptId !== null) {
+            $sql .= ' AND user_id <> :except_id';
+            $params[':except_id'] = $exceptId;
+        }
+
+        $sql .= ' LIMIT 1';
+
+        $stmt = self::pdo()->prepare($sql);
+        $stmt->execute($params);
+
+        return $stmt->fetch() !== false;
+    }
+
+    /**
+     * Count of active users whose role is Secretary. Used to block deactivating
+     * or demoting the last remaining active Secretary — that account is the
+     * only one that can manage users, so losing it would lock the college out
+     * of its own system with no way back in short of editing the database.
+     */
+    public static function activeAdminCount(): int
+    {
+        $stmt = self::pdo()->query(
+            "SELECT COUNT(*) FROM users u
+             INNER JOIN roles r ON r.role_id = u.role_id
+             WHERE u.status = 'active' AND r.role_name = 'Secretary'"
+        );
+
+        return (int) $stmt->fetchColumn();
+    }
+
+    /**
+     * Atomically deactivate a user while preserving the last-admin invariant.
+     * A single conditional statement flips status -> inactive, but for an
+     * Secretary only when another active Secretary still remains, so two
+     * Secretaries deactivating each other in parallel cannot both pass a stale
+     * count and leave the system with zero admins (TOCTOU-safe — the plain
+     * activeAdminCount() pre-check in the controller can be raced; this cannot).
+     * The active-admin count reads `users` through a derived table because
+     * MySQL forbids referencing the table being updated directly. Returns true
+     * if the row was deactivated, false if the guard refused it (last admin).
+     */
+    public static function deactivateGuardingLastAdmin(int $id): bool
+    {
+        $stmt = self::pdo()->prepare(
+            "UPDATE users AS target
+             INNER JOIN roles AS tr ON tr.role_id = target.role_id
+             SET target.status = 'inactive'
+             WHERE target.user_id = :id
+               AND target.status = 'active'
+               AND (
+                    tr.role_name <> 'Secretary'
+                    OR (
+                        SELECT COUNT(*) FROM (
+                            SELECT u2.user_id
+                            FROM users u2
+                            INNER JOIN roles r2 ON r2.role_id = u2.role_id
+                            WHERE u2.status = 'active' AND r2.role_name = 'Secretary'
+                        ) AS active_admins
+                    ) > 1
+               )"
+        );
+        $stmt->execute([':id' => $id]);
+
+        return $stmt->rowCount() > 0;
+    }
+
+    /**
+     * Update name/email/role. When $guardLastAdmin is true (an active
+     * Secretary is being demoted by someone else), the change runs inside a
+     * transaction that locks and re-counts the active Secretaries with
+     * SELECT ... FOR UPDATE, refusing the demotion if it would drop the count
+     * below one — closing the TOCTOU window the controller's plain pre-check
+     * leaves open. Returns false only when a demotion was refused for that
+     * reason; every other update returns true.
+     */
+    public static function updateProfileGuardingLastAdmin(int $id, string $firstName, string $lastName, string $email, int $roleId, bool $guardLastAdmin): bool
+    {
+        if (!$guardLastAdmin) {
+            self::updateProfile($id, $firstName, $lastName, $email, $roleId);
+
+            return true;
+        }
+
+        $pdo = self::pdo();
+        $pdo->beginTransaction();
+
+        try {
+            $count = (int) $pdo->query(
+                "SELECT COUNT(*) FROM users u
+                 INNER JOIN roles r ON r.role_id = u.role_id
+                 WHERE u.status = 'active' AND r.role_name = 'Secretary'
+                 FOR UPDATE"
+            )->fetchColumn();
+
+            if ($count <= 1) {
+                $pdo->rollBack();
+
+                return false;
+            }
+
+            $stmt = $pdo->prepare(
+                'UPDATE users
+                 SET first_name = :first_name, last_name = :last_name, email = :email, role_id = :role_id
+                 WHERE user_id = :id'
+            );
+            $stmt->execute([
+                ':first_name' => $firstName,
+                ':last_name'  => $lastName,
+                ':email'      => $email,
+                ':role_id'    => $roleId,
+                ':id'         => $id,
+            ]);
+
+            $pdo->commit();
+
+            return true;
+        } catch (\Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+
+            throw $e;
+        }
+    }
+
     /**
      * Look up an active user by email, including their role name, for login.
      *
@@ -50,6 +284,78 @@ final class User
         $row = $stmt->fetch();
 
         return $row === false ? null : $row;
+    }
+
+    /**
+     * The signed-in user's own record for the profile screen (FR-5), including
+     * the password hash so a password change can verify the CURRENT password
+     * before accepting a new one.
+     *
+     * Separate from find() on purpose: find() feeds the admin user-management
+     * screens and deliberately never selects password_hash. Only the
+     * self-service password change needs it, so only this method exposes it.
+     *
+     * @return array{user_id:int,employee_no:?string,first_name:string,last_name:string,email:string,program_dept:?string,password_hash:string,role_name:string}|null
+     */
+    public static function profileFor(int $userId): ?array
+    {
+        $stmt = self::pdo()->prepare(
+            'SELECT u.user_id, u.employee_no, u.first_name, u.last_name, u.email,
+                    u.program_dept, u.password_hash, r.role_name
+             FROM users u
+             INNER JOIN roles r ON r.role_id = u.role_id
+             WHERE u.user_id = :id
+             LIMIT 1'
+        );
+        $stmt->execute([':id' => $userId]);
+        $row = $stmt->fetch();
+
+        return $row === false ? null : $row;
+    }
+
+    /**
+     * Update the fields a user may change about THEMSELVES (FR-5).
+     *
+     * Note what is absent: role_id and status. Self-service editing must never
+     * be a privilege-escalation path, so those columns are simply not in this
+     * statement — a forged role_id in the request has nothing to bind to,
+     * rather than relying on the controller remembering to strip it.
+     */
+    public static function updateOwnProfile(int $id, string $firstName, string $lastName, string $email, ?string $programDept): void
+    {
+        $stmt = self::pdo()->prepare(
+            'UPDATE users
+                SET first_name = :first_name, last_name = :last_name,
+                    email = :email, program_dept = :program_dept
+              WHERE user_id = :id'
+        );
+        $stmt->execute([
+            ':first_name'   => $firstName,
+            ':last_name'    => $lastName,
+            ':email'        => $email,
+            ':program_dept' => $programDept,
+            ':id'           => $id,
+        ]);
+    }
+
+    /**
+     * user_id list of every active Secretary — the recipients of the "new
+     * submission awaiting review" notification (FR-21). The review queue is
+     * shared rather than assigned, so if the college ever staffs more than one
+     * Secretary they are all told, not one nominated individual.
+     *
+     * @return list<int>
+     */
+    public static function activeSecretaryIds(): array
+    {
+        $stmt = self::pdo()->query(
+            "SELECT u.user_id
+             FROM users u
+             INNER JOIN roles r ON r.role_id = u.role_id
+             WHERE u.status = 'active' AND r.role_name = 'Secretary'"
+        );
+
+        return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
     }
 
     /**

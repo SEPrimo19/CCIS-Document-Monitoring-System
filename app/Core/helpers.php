@@ -23,3 +23,23 @@ if (!function_exists('asset')) {
         return BASE_URL . '/assets/' . ltrim($path, '/');
     }
 }
+
+if (!function_exists('period_label')) {
+    /**
+     * One canonical human label for an academic period, so every screen names
+     * it the same way (previously each view hand-rolled its own format — some
+     * "AY 2026-2027, 1st Semester", some "2026-2027 — 1st Semester"). Uses the
+     * admin-set label when present, falling back to the school year + semester.
+     *
+     * `?:` not `??`: an empty-string label is as good as no label and must fall
+     * through to the computed name.
+     *
+     * @param array{school_year:string,semester:string,label?:?string} $period
+     */
+    function period_label(array $period): string
+    {
+        $fallback = 'AY ' . $period['school_year'] . ', ' . $period['semester'] . ' Semester';
+
+        return ($period['label'] ?? '') !== '' ? (string) $period['label'] : $fallback;
+    }
+}

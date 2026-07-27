@@ -4,13 +4,21 @@
  * @var array{user_id:int,first_name:string,last_name:string,email:string,role_name:string} $user
  * @var array{period_id:int,school_year:string,semester:string,label:?string,start_date:?string,end_date:?string,is_active:int}|null $period
  * @var array{statusCounts:array{Pending:int,Submitted:int,Approved:int,'Returned-for-revision':int},total:int,complianceRate:int,overdueCount:int}|null $figures
+ * @var int $awaitingCount submissions waiting on the Secretary's decision (FR-12)
  */
 require __DIR__ . '/../partials/header.php';
+
+$periodLabel = $period !== null
+    ? ($period['label'] ?? ($period['school_year'] . ' — ' . $period['semester'] . ' Semester'))
+    : null;
 ?>
 <section class="dash-hero">
-    <span class="badge">Administrator</span>
+    <span class="badge">Secretary</span>
     <h1>Welcome, <?= htmlspecialchars($user['first_name']) ?></h1>
     <p class="sub">Signed in as <?= htmlspecialchars($user['email']) ?> &middot; <?= htmlspecialchars($user['role_name']) ?></p>
+    <?php if ($periodLabel !== null): ?>
+        <p class="dash-period">Active period: <?= htmlspecialchars($periodLabel) ?></p>
+    <?php endif; ?>
 </section>
 
 <p class="dash-cta">
@@ -59,13 +67,64 @@ require __DIR__ . '/../partials/header.php';
             <p class="detail">Past deadline, not yet approved (FR-20).</p>
         </article>
     </section>
+
+    <?php
+    $sc = $figures['statusCounts'];
+    $barTotal = (int) $figures['total'];
+    $segments = [
+        ['Pending',   (int) $sc['Pending'],               'seg-pending'],
+        ['Submitted', (int) $sc['Submitted'],             'seg-submitted'],
+        ['Approved',  (int) $sc['Approved'],              'seg-approved'],
+        ['Returned',  (int) $sc['Returned-for-revision'], 'seg-returned'],
+    ];
+    ?>
+    <?php if ($barTotal > 0): ?>
+        <section class="status-dist">
+            <h2 class="section-title">Status distribution</h2>
+            <?php // Inline SVG: geometry via attributes, colour via CSS classes, so the ?>
+            <?php // proportional bar renders under the strict CSP (no inline styles). ?>
+            <svg class="status-bar" viewBox="0 0 100 6" preserveAspectRatio="none" role="img"
+                 aria-label="Submission status distribution across <?= $barTotal ?> submissions this period.">
+                <?php $x = 0.0; ?>
+                <?php foreach ($segments as [$segLabel, $segCount, $segClass]): ?>
+                    <?php if ($segCount > 0): ?>
+                        <?php $segW = $segCount / $barTotal * 100; ?>
+                        <rect class="<?= $segClass ?>" x="<?= round($x, 3) ?>" y="0" width="<?= round($segW, 3) ?>" height="6"><title><?= htmlspecialchars($segLabel . ': ' . $segCount) ?></title></rect>
+                        <?php $x += $segW; ?>
+                    <?php endif; ?>
+                <?php endforeach; ?>
+            </svg>
+            <ul class="status-legend">
+                <?php foreach ($segments as [$segLabel, $segCount, $segClass]): ?>
+                    <li class="legend-item">
+                        <span class="legend-swatch <?= $segClass ?>" aria-hidden="true"></span>
+                        <?= htmlspecialchars($segLabel) ?> &mdash; <strong><?= $segCount ?></strong>
+                        <span class="legend-pct">(<?= round($segCount / $barTotal * 100) ?>%)</span>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+        </section>
+    <?php endif; ?>
 <?php endif; ?>
 
 <section class="cards">
+    <article class="card<?= $awaitingCount > 0 ? ' err' : '' ?>">
+        <h2>Awaiting Review</h2>
+        <p class="status"><?= (int) $awaitingCount ?></p>
+        <p class="detail">Submitted documents waiting for your decision (FR-12, FR-13).</p>
+        <p class="status muted"><a href="<?= url('/reviewer/queue') ?>" class="card-link">Open review queue &rarr;</a></p>
+    </article>
+
+    <article class="card">
+        <h2>Faculty Compliance</h2>
+        <p class="detail">Per-faculty summary of submitted, approved, returned, and pending requirements (FR-16).</p>
+        <p class="status muted"><a href="<?= url('/reviewer/compliance') ?>" class="card-link">View faculty compliance &rarr;</a></p>
+    </article>
+
     <article class="card">
         <h2>User Accounts</h2>
         <p class="detail">Create, edit, deactivate accounts, and assign roles (FR-26).</p>
-        <p class="status muted">Coming in Phase 4</p>
+        <p class="status muted"><a href="<?= url('/admin/users') ?>" class="card-link">Manage users &rarr;</a></p>
     </article>
 
     <article class="card">

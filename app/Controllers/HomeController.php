@@ -29,7 +29,7 @@ final class HomeController extends Controller
      */
     public function health(): void
     {
-        Guard::requireRole('Administrator');
+        Guard::requireRole('Secretary');
 
         $config = $this->config();
         $isProduction = $config['app']['env'] === 'production' || $config['app']['debug'] === false;

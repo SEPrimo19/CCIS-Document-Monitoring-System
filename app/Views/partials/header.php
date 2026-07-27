@@ -41,10 +41,10 @@ try {
                             <span class="notif-badge"><?= htmlspecialchars((string) $unreadNotifCount) ?></span>
                         <?php endif; ?>
                     </a>
-                    <span class="who">
+                    <a class="who" href="<?= url('/profile') ?>">
                         <?= htmlspecialchars($authUser['first_name'] . ' ' . $authUser['last_name']) ?>
                         <span class="role-pill"><?= htmlspecialchars($authUser['role_name']) ?></span>
-                    </span>
+                    </a>
                     <form method="post" action="<?= url('/logout') ?>" class="logout-form">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(\App\Core\Csrf::token()) ?>">
                         <button type="submit" class="logout-btn">Log out</button>
@@ -53,15 +53,23 @@ try {
             <?php endif; ?>
         </div>
     </header>
-    <?php if (\App\Core\Auth::hasRole('Administrator')): ?>
+    <?php // One navigation per role. The Secretary's covers both halves of the ?>
+    <?php // job — configuring the system and verifying submissions — grouped in ?>
+    <?php // the order the work actually happens: set up, then review, then report. ?>
+    <?php if (\App\Core\Auth::hasRole('Secretary')): ?>
         <nav class="subnav">
             <div class="subnav-inner">
                 <a href="<?= url('/admin/dashboard') ?>">Dashboard</a>
-                <a href="<?= url('/admin/document-types') ?>">Document Types</a>
-                <a href="<?= url('/admin/requirements') ?>">Requirements</a>
+                <a href="<?= url('/reviewer/queue') ?>">Review Queue</a>
                 <a href="<?= url('/admin/monitoring') ?>">Monitoring</a>
-                <a href="<?= url('/admin/audit-log') ?>">Audit Log</a>
+                <a href="<?= url('/reviewer/compliance') ?>">Faculty Compliance</a>
+                <a href="<?= url('/admin/requirements') ?>">Requirements</a>
+                <a href="<?= url('/admin/document-types') ?>">Document Types</a>
+                <a href="<?= url('/admin/periods') ?>">Periods</a>
+                <a href="<?= url('/admin/users') ?>">Users</a>
                 <a href="<?= url('/admin/reports') ?>">Reports</a>
+                <a href="<?= url('/admin/audit-log') ?>">Audit Log</a>
+                <a href="<?= url('/archive') ?>">Archive</a>
             </div>
         </nav>
     <?php endif; ?>
@@ -70,14 +78,7 @@ try {
             <div class="subnav-inner">
                 <a href="<?= url('/faculty/dashboard') ?>">Dashboard</a>
                 <a href="<?= url('/faculty/requirements') ?>">My Requirements</a>
-            </div>
-        </nav>
-    <?php endif; ?>
-    <?php if (\App\Core\Auth::hasRole('Reviewer/Approver')): ?>
-        <nav class="subnav">
-            <div class="subnav-inner">
-                <a href="<?= url('/reviewer/dashboard') ?>">Dashboard</a>
-                <a href="<?= url('/reviewer/queue') ?>">Review Queue</a>
+                <a href="<?= url('/archive') ?>">Archive</a>
             </div>
         </nav>
     <?php endif; ?>

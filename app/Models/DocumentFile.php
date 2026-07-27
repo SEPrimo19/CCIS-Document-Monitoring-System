@@ -64,6 +64,32 @@ final class DocumentFile
         return $row === false ? null : $row;
     }
 
+    /**
+     * Every uploaded version of one submission, newest version first — the
+     * version history on the document-detail page (FR-11).
+     *
+     * Resubmitting a returned document inserts a NEW row rather than replacing
+     * the old one (FR-10), so prior versions remain downloadable evidence of
+     * what was submitted and when. `uploaded_by_name` is joined in because a
+     * version is only meaningful alongside who uploaded it.
+     *
+     * @return list<array{file_id:int,file_name:string,mime_type:string,file_size:int,version_no:int,uploaded_at:string,uploaded_by_name:string}>
+     */
+    public static function versionsForSubmission(int $submissionId): array
+    {
+        $stmt = self::pdo()->prepare(
+            "SELECT f.file_id, f.file_name, f.mime_type, f.file_size, f.version_no, f.uploaded_at,
+                    CONCAT(u.first_name, ' ', u.last_name) AS uploaded_by_name
+             FROM document_files f
+             INNER JOIN users u ON u.user_id = f.uploaded_by
+             WHERE f.submission_id = :id
+             ORDER BY f.version_no DESC"
+        );
+        $stmt->execute([':id' => $submissionId]);
+
+        return $stmt->fetchAll();
+    }
+
     private static function pdo(): PDO
     {
         static $config = null;

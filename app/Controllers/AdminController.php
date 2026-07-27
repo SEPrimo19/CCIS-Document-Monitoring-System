@@ -50,16 +50,24 @@ final class AdminController extends Controller
 
     public function dashboard(): void
     {
-        Guard::requireRole('Administrator');
+        Guard::requireRole('Secretary');
 
         $period = AcademicPeriod::active();
         $figures = $period !== null ? $this->figuresForPeriod((int) $period['period_id']) : null;
 
+        // The Secretary both configures the system and verifies submissions, so
+        // this single dashboard carries the review workload too (FR-12) — there
+        // is no longer a separate reviewer landing page to split it across.
+        $awaitingCount = $period !== null
+            ? Submission::awaitingReviewCount((int) $period['period_id'])
+            : 0;
+
         $this->view('dashboard/admin', [
-            'appName' => $this->config()['app']['name'],
-            'user'    => Auth::user(),
-            'period'  => $period,
-            'figures' => $figures,
+            'appName'       => $this->config()['app']['name'],
+            'user'          => Auth::user(),
+            'period'        => $period,
+            'figures'       => $figures,
+            'awaitingCount' => $awaitingCount,
         ]);
     }
 
@@ -70,7 +78,7 @@ final class AdminController extends Controller
      */
     public function monitoring(): void
     {
-        Guard::requireRole('Administrator');
+        Guard::requireRole('Secretary');
 
         $period = AcademicPeriod::active();
         $docTypes = $this->activeDocumentTypes();
@@ -123,7 +131,7 @@ final class AdminController extends Controller
      */
     public function auditLog(): void
     {
-        Guard::requireRole('Administrator');
+        Guard::requireRole('Secretary');
 
         $actors = AuditLog::distinctActors();
         $actions = AuditLog::distinctActions();
@@ -159,7 +167,7 @@ final class AdminController extends Controller
      */
     public function reports(): void
     {
-        Guard::requireRole('Administrator');
+        Guard::requireRole('Secretary');
 
         $periods = AcademicPeriod::all();
         $periodId = $this->periodIdFilterFrom($_GET, $periods);
@@ -207,7 +215,7 @@ final class AdminController extends Controller
      */
     public function exportCsv(): void
     {
-        Guard::requireRole('Administrator');
+        Guard::requireRole('Secretary');
 
         $periods = AcademicPeriod::all();
         $periodId = $this->periodIdFilterFrom($_GET, $periods);

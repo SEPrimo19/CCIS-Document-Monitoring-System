@@ -18,38 +18,50 @@ use App\Models\Submission;
 use Throwable;
 
 /**
- * Reviewer/Approver review flow (FR-12..FR-15): a shared queue of Submitted
- * documents — no per-reviewer assignment, any Reviewer/Approver may act on
- * any item — and a single-step Approve / Return-for-revision decision, with
- * comments mandatory on return. Faculty compliance summary is built out
- * later in Phase 4.
+ * Document verification flow (FR-12..FR-15), performed by the Secretary: a
+ * queue of Submitted documents and a single-step Approve / Return-for-revision
+ * decision, with comments mandatory on return. Also exposes a read-only
+ * per-faculty compliance summary (FR-16) reusing the monitoring figures.
+ *
+ * The queue is shared rather than assigned — it is not tied to one reviewer
+ * account — so it keeps working unchanged if the college ever staffs a second
+ * Secretary. There is no separate landing page for this flow: the Secretary's
+ * dashboard (AdminController::dashboard) carries the "Awaiting Review" count.
  */
 final class ReviewerController extends Controller
 {
-    public function dashboard(): void
+    public function compliance(): void
     {
-        Guard::requireRole('Reviewer/Approver');
+        Guard::requireRole('Secretary');
 
         $period = AcademicPeriod::active();
-        $awaitingCount = $period !== null ? Submission::awaitingReviewCount((int) $period['period_id']) : 0;
+        $compliance = $period !== null
+            ? Submission::complianceByFaculty((int) $period['period_id'])
+            : [];
 
-        $this->view('dashboard/reviewer', [
-            'appName'       => $this->config()['app']['name'],
-            'user'          => Auth::user(),
-            'awaitingCount' => $awaitingCount,
+        $this->view('reviewer/compliance', [
+            'appName'    => $this->config()['app']['name'],
+            'period'     => $period,
+            'compliance' => $compliance,
         ]);
     }
 
     public function queue(): void
     {
-        Guard::requireRole('Reviewer/Approver');
+        Guard::requireRole('Secretary');
 
         $flash = $_SESSION['flash'] ?? null;
         unset($_SESSION['flash']);
 
-        $period = AcademicPeriod::active();
         $docTypes = $this->activeDocumentTypes();
         $selectedDocTypeId = $this->docTypeFilterFrom($_GET, $docTypes);
+
+        // FR-12: the queue is filterable by academic period as well as by
+        // document type. It still DEFAULTS to the active period — that is the
+        // day-to-day case — but a reviewer can look back at an earlier period
+        // to clear anything left Submitted when it closed.
+        $periods = AcademicPeriod::all();
+        $period = $this->periodFilterFrom($_GET, $periods) ?? AcademicPeriod::active();
 
         $queue = $period !== null
             ? Submission::queueForReview((int) $period['period_id'], $selectedDocTypeId)
@@ -58,6 +70,7 @@ final class ReviewerController extends Controller
         $this->view('reviewer/queue', [
             'appName'           => $this->config()['app']['name'],
             'period'            => $period,
+            'periods'           => $periods,
             'docTypes'          => $docTypes,
             'selectedDocTypeId' => $selectedDocTypeId,
             'queue'             => $queue,
@@ -68,7 +81,7 @@ final class ReviewerController extends Controller
 
     public function review(string $id): void
     {
-        Guard::requireRole('Reviewer/Approver');
+        Guard::requireRole('Secretary');
 
         $submission = Submission::findForReview((int) $id);
         if ($submission === null) {
@@ -81,7 +94,7 @@ final class ReviewerController extends Controller
 
     public function decide(string $id): void
     {
-        Guard::requireRole('Reviewer/Approver');
+        Guard::requireRole('Secretary');
 
         $submissionId = (int) $id;
 
@@ -212,6 +225,34 @@ final class ReviewerController extends Controller
             DocumentType::all(),
             static fn(array $type): bool => (int) $type['is_active'] === 1
         ));
+    }
+
+    /**
+     * The `period_id` GET filter, validated against the real period list.
+     * Returns the full period row so the view can label it, or null when the
+     * parameter is absent, non-numeric, or names a period that doesn't exist —
+     * in which case the caller falls back to the active period rather than
+     * showing an empty queue for a made-up id.
+     *
+     * @param array<string,mixed> $query
+     * @param list<array{period_id:int,school_year:string,semester:string,label:?string,is_active:int}> $periods
+     * @return array{period_id:int,school_year:string,semester:string,label:?string,start_date:?string,end_date:?string,is_active:int}|null
+     */
+    private function periodFilterFrom(array $query, array $periods): ?array
+    {
+        $raw = trim((string) ($query['period_id'] ?? ''));
+        if ($raw === '' || !ctype_digit($raw)) {
+            return null;
+        }
+
+        $id = (int) $raw;
+        foreach ($periods as $candidate) {
+            if ((int) $candidate['period_id'] === $id) {
+                return AcademicPeriod::find($id);
+            }
+        }
+
+        return null;
     }
 
     /**

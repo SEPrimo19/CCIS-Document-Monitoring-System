@@ -12,6 +12,7 @@ use App\Core\Guard;
 use App\Models\AcademicPeriod;
 use App\Models\AuditLog;
 use App\Models\DocumentType;
+use App\Models\Notification;
 use App\Models\Requirement;
 use App\Models\Submission;
 use App\Models\User;
@@ -29,7 +30,7 @@ final class RequirementController extends Controller
 {
     public function index(): void
     {
-        Guard::requireRole('Administrator');
+        Guard::requireRole('Secretary');
 
         $flash = $_SESSION['flash'] ?? null;
         unset($_SESSION['flash']);
@@ -48,7 +49,7 @@ final class RequirementController extends Controller
 
     public function create(): void
     {
-        Guard::requireRole('Administrator');
+        Guard::requireRole('Secretary');
 
         $period = AcademicPeriod::active();
         $docTypes = $this->activeDocumentTypes();
@@ -63,7 +64,7 @@ final class RequirementController extends Controller
 
     public function store(): void
     {
-        Guard::requireRole('Administrator');
+        Guard::requireRole('Secretary');
 
         $period = AcademicPeriod::active();
         $docTypes = $this->activeDocumentTypes();
@@ -113,6 +114,22 @@ final class RequirementController extends Controller
                 $pdo->rollBack();
             }
             throw $e;
+        }
+
+        // Best-effort, post-commit: tell every assigned faculty member they
+        // have a new requirement to submit (FR-21). Must never undo a publish
+        // that already committed — a notification failure just means the item
+        // still appears on their checklist without the heads-up.
+        try {
+            $message = mb_substr(
+                '"' . $input['title'] . '" has been assigned to you. Due '
+                . date('M j, Y', strtotime($input['deadline'])) . '. Please upload your document.',
+                0,
+                255
+            );
+            Notification::createRequirementAssigned($requirementId, $message);
+        } catch (Throwable $e) {
+            error_log('[CCIS-DMS] requirement-assigned notification failed for requirement ' . $requirementId . ': ' . $e->getMessage());
         }
 
         // Best-effort, post-commit: an audit-log write must never 500 a

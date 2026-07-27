@@ -9,7 +9,7 @@ require __DIR__ . '/../../partials/header.php';
 ?>
 <section class="page-head">
     <div>
-        <span class="badge">Administrator</span>
+        <span class="badge">Secretary</span>
         <h1>Document Types</h1>
         <p class="sub">Add, edit, and deactivate the document types faculty submit against (FR-27).</p>
     </div>

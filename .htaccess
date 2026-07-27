@@ -1,0 +1,29 @@
+# Defence in depth against a mis-set DocumentRoot.
+#
+# When the server is configured correctly, DocumentRoot points at public/ and
+# Apache never reads this file at all — .htaccess files are only consulted from
+# the DocumentRoot downward, and this one sits above it.
+#
+# It only takes effect in the failure case: someone points the vhost (or drops
+# the project into htdocs/) at the PROJECT ROOT instead of public/. Without
+# this file that mistake serves .env, database/schema.sql, storage/uploads/,
+# and the whole app/ directory as plain static files. With it, the site fails
+# closed — every request is denied, which is a loud, obvious symptom rather
+# than a silent credential leak.
+#
+# If you are seeing 403 Forbidden on every page: your DocumentRoot is wrong.
+# Point it at the public/ directory, not here.
+
+<IfModule mod_authz_core.c>
+    # Apache 2.4+
+    Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+    # Apache 2.2
+    Order allow,deny
+    Deny from all
+</IfModule>
+
+# Belt and braces if the directives above are ignored because AllowOverride
+# does not permit them: at least never index the directory listing.
+Options -Indexes

@@ -39,7 +39,7 @@ $statusPillClass = [
     </p>
 <?php else: ?>
     <div class="table-wrap">
-        <table class="table">
+        <table class="table table--stack">
             <thead>
                 <tr>
                     <th>Requirement</th>
@@ -66,9 +66,9 @@ $statusPillClass = [
                     $pillClass = $statusPillClass[$row['status']] ?? 'status-pill-pending';
                     ?>
                     <tr>
-                        <td><?= htmlspecialchars($row['title']) ?></td>
-                        <td><?= htmlspecialchars($row['doc_type_name']) ?></td>
-                        <td>
+                        <td data-label="Requirement"><?= htmlspecialchars($row['title']) ?></td>
+                        <td data-label="Document Type"><?= htmlspecialchars($row['doc_type_name']) ?></td>
+                        <td data-label="Deadline">
                             <?php if ($row['deadline'] !== null): ?>
                                 <?= htmlspecialchars(date('M j, Y', strtotime($row['deadline']))) ?>
                                 <?php if ($isOverdue): ?><span class="overdue">Overdue</span><?php endif; ?>
@@ -76,14 +76,14 @@ $statusPillClass = [
                                 &mdash;
                             <?php endif; ?>
                         </td>
-                        <td>
+                        <td data-label="Status">
                             <span class="status-pill <?= $pillClass ?>"><?= htmlspecialchars($row['status']) ?></span>
                             <?php if ($row['status'] === 'Returned-for-revision' && $row['last_comment'] !== null && $row['last_comment'] !== ''): ?>
                                 <p class="review-comment-note"><strong>Reviewer:</strong> <?= htmlspecialchars($row['last_comment']) ?></p>
                             <?php endif; ?>
                         </td>
-                        <td><?= htmlspecialchars(date('M j, Y', strtotime($row['updated_at']))) ?></td>
-                        <td class="table-actions">
+                        <td data-label="Last updated"><?= htmlspecialchars(date('M j, Y', strtotime($row['updated_at']))) ?></td>
+                        <td class="table-actions" data-label="Action">
                             <?php if ($canUpload): ?>
                                 <form method="post" enctype="multipart/form-data" action="<?= url('/faculty/submissions/' . $row['submission_id'] . '/upload') ?>" class="upload-form">
                                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
@@ -94,9 +94,7 @@ $statusPillClass = [
                             <?php if ($hasFile): ?>
                                 <a href="<?= url('/documents/' . $row['file_id'] . '/download') ?>" class="btn-sm btn-secondary">Download</a>
                             <?php endif; ?>
-                            <?php if (!$canUpload && !$hasFile): ?>
-                                <span class="muted-note">&mdash;</span>
-                            <?php endif; ?>
+                            <a href="<?= url('/submissions/' . $row['submission_id']) ?>" class="btn-sm btn-secondary">Details</a>
                         </td>
                     </tr>
                 <?php endforeach; ?>

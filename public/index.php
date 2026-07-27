@@ -8,22 +8,9 @@ declare(strict_types=1);
 
 define('BASE_PATH', dirname(__DIR__));
 
-/* --- Load .env (simple parser; real env vars win) --- */
-$envFile = BASE_PATH . '/.env';
-if (is_file($envFile)) {
-    foreach (file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
-        $line = trim($line);
-        if ($line === '' || $line[0] === '#' || !str_contains($line, '=')) {
-            continue;
-        }
-        [$key, $value] = explode('=', $line, 2);
-        $key = trim($key);
-        $value = trim($value, " \t\"'");
-        if (getenv($key) === false) {
-            putenv("{$key}={$value}");
-        }
-    }
-}
+/* --- Load .env (simple parser; real env vars win) — shared with the CLI
+       scripts in scripts/, which need the same environment this request has. --- */
+require BASE_PATH . '/config/env.php';
 
 /* --- PSR-4 autoloader: App\ => app/ --- */
 spl_autoload_register(static function (string $class): void {
@@ -81,6 +68,7 @@ set_exception_handler(static function (Throwable $e) use ($config, $isProduction
 });
 
 use App\Controllers\AdminController;
+use App\Controllers\ArchiveController;
 use App\Controllers\AuthController;
 use App\Controllers\DashboardController;
 use App\Controllers\DocumentController;
@@ -88,8 +76,12 @@ use App\Controllers\DocumentTypeController;
 use App\Controllers\FacultyController;
 use App\Controllers\HomeController;
 use App\Controllers\NotificationController;
+use App\Controllers\PeriodController;
+use App\Controllers\ProfileController;
 use App\Controllers\RequirementController;
 use App\Controllers\ReviewerController;
+use App\Controllers\SubmissionController;
+use App\Controllers\UserController;
 use App\Core\Auth;
 use App\Core\Router;
 
@@ -123,7 +115,6 @@ $router->post('/logout', [AuthController::class, 'logout']);
 
 $router->get('/dashboard', [DashboardController::class, 'index']);
 $router->get('/admin/dashboard', [AdminController::class, 'dashboard']);
-$router->get('/reviewer/dashboard', [ReviewerController::class, 'dashboard']);
 $router->get('/faculty/dashboard', [FacultyController::class, 'dashboard']);
 
 $router->get('/admin/document-types', [DocumentTypeController::class, 'index']);
@@ -133,6 +124,22 @@ $router->get('/admin/document-types/{id}/edit', [DocumentTypeController::class, 
 $router->post('/admin/document-types/{id}', [DocumentTypeController::class, 'update']);
 $router->post('/admin/document-types/{id}/deactivate', [DocumentTypeController::class, 'deactivate']);
 $router->post('/admin/document-types/{id}/activate', [DocumentTypeController::class, 'activate']);
+
+$router->get('/admin/users', [UserController::class, 'index']);
+$router->get('/admin/users/new', [UserController::class, 'create']);
+$router->post('/admin/users', [UserController::class, 'store']);
+$router->get('/admin/users/{id}/edit', [UserController::class, 'edit']);
+$router->post('/admin/users/{id}', [UserController::class, 'update']);
+$router->post('/admin/users/{id}/deactivate', [UserController::class, 'deactivate']);
+$router->post('/admin/users/{id}/activate', [UserController::class, 'activate']);
+
+$router->get('/admin/periods', [PeriodController::class, 'index']);
+$router->get('/admin/periods/new', [PeriodController::class, 'create']);
+$router->post('/admin/periods', [PeriodController::class, 'store']);
+$router->get('/admin/periods/{id}/edit', [PeriodController::class, 'edit']);
+$router->post('/admin/periods/{id}', [PeriodController::class, 'update']);
+$router->post('/admin/periods/{id}/activate', [PeriodController::class, 'activate']);
+$router->post('/admin/periods/{id}/deactivate', [PeriodController::class, 'deactivate']);
 
 $router->get('/admin/requirements', [RequirementController::class, 'index']);
 $router->get('/admin/requirements/new', [RequirementController::class, 'create']);
@@ -153,8 +160,19 @@ $router->post('/faculty/submissions/{id}/upload', [FacultyController::class, 'up
 $router->get('/reviewer/queue', [ReviewerController::class, 'queue']);
 $router->get('/reviewer/submissions/{id}/review', [ReviewerController::class, 'review']);
 $router->post('/reviewer/submissions/{id}/review', [ReviewerController::class, 'decide']);
+$router->get('/reviewer/compliance', [ReviewerController::class, 'compliance']);
 
 $router->get('/documents/{id}/download', [DocumentController::class, 'download']);
+$router->get('/submissions/{id}', [SubmissionController::class, 'show']);
+
+// Any authenticated role may browse the archive; what they SEE is scoped by
+// role inside the controller (Faculty see only their own history).
+$router->get('/archive', [ArchiveController::class, 'index']);
+$router->get('/archive/{id}', [ArchiveController::class, 'show']);
+
+$router->get('/profile', [ProfileController::class, 'show']);
+$router->post('/profile', [ProfileController::class, 'update']);
+$router->post('/profile/password', [ProfileController::class, 'changePassword']);
 
 $router->get('/notifications', [NotificationController::class, 'index']);
 $router->post('/notifications/{id}/read', [NotificationController::class, 'markRead']);

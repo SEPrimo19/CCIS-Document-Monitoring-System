@@ -141,7 +141,7 @@ final class Submission
 
     /**
      * Every Submitted submission for a period — the shared reviewer queue
-     * (FR-12). No reviewer filter: any Reviewer/Approver sees every item.
+     * (FR-12). No per-reviewer filter: the Secretary sees every item.
      * Optionally narrowed to one document type. Oldest submitted first, so
      * the queue works like a FIFO.
      *
@@ -259,14 +259,18 @@ final class Submission
      * submission doesn't exist and when it belongs to someone else, so a
      * caller can never distinguish the two.
      *
-     * @return array{submission_id:int,requirement_id:int,status:string,current_version:int}|null
+     * The requirement `title` is joined in so the post-upload notification to
+     * the reviewers (FR-21) can name the document without a second query.
+     *
+     * @return array{submission_id:int,requirement_id:int,status:string,current_version:int,title:string}|null
      */
     public static function findOwned(int $submissionId, int $facultyId): ?array
     {
         $stmt = self::pdo()->prepare(
-            'SELECT submission_id, requirement_id, status, current_version
-             FROM submissions
-             WHERE submission_id = :id AND faculty_id = :faculty_id
+            'SELECT s.submission_id, s.requirement_id, s.status, s.current_version, r.title
+             FROM submissions s
+             INNER JOIN requirements r ON r.requirement_id = s.requirement_id
+             WHERE s.submission_id = :id AND s.faculty_id = :faculty_id
              LIMIT 1'
         );
         $stmt->execute([
@@ -546,6 +550,71 @@ final class Submission
         $stmt->execute([':period_id' => $periodId]);
 
         return $stmt->fetchAll();
+    }
+
+    /**
+     * Every submission belonging to one academic period — the read-only
+     * archive listing (FR-33). Pass $facultyId to scope the result to a single
+     * faculty member: that is how a Faculty user browsing the archive sees
+     * only their own history, enforced in SQL rather than by filtering after
+     * the fact.
+     *
+     * Works for ANY period, active or not. The archive UI only offers closed
+     * periods, but nothing here depends on that, so the same query can back a
+     * future "view this period" screen without change.
+     *
+     * @return list<array{submission_id:int,status:string,current_version:int,updated_at:string,title:string,deadline:?string,doc_type_name:string,faculty_name:string,file_id:?int,file_name:?string}>
+     */
+    public static function archiveForPeriod(int $periodId, ?int $facultyId = null): array
+    {
+        $sql = "SELECT s.submission_id, s.status, s.current_version, s.updated_at,
+                       r.title, r.deadline,
+                       dt.name AS doc_type_name,
+                       CONCAT(u.first_name, ' ', u.last_name) AS faculty_name,
+                       f.file_id, f.file_name
+                FROM submissions s
+                INNER JOIN requirements r ON r.requirement_id = s.requirement_id
+                INNER JOIN document_types dt ON dt.doc_type_id = r.doc_type_id
+                INNER JOIN users u ON u.user_id = s.faculty_id
+                LEFT JOIN document_files f ON f.submission_id = s.submission_id AND f.version_no = s.current_version
+                WHERE r.period_id = :period_id";
+
+        $params = [':period_id' => $periodId];
+
+        if ($facultyId !== null) {
+            $sql .= ' AND s.faculty_id = :faculty_id';
+            $params[':faculty_id'] = $facultyId;
+        }
+
+        $sql .= ' ORDER BY u.last_name ASC, u.first_name ASC, r.deadline ASC, r.title ASC';
+
+        $stmt = self::pdo()->prepare($sql);
+        $stmt->execute($params);
+
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * The academic period a submission belongs to, reached through its
+     * requirement. Used by the document-detail page (FR-11) to show which
+     * period the item came from, and to tell an archived item from a live one.
+     *
+     * @return array{period_id:int,school_year:string,semester:string,label:?string,is_active:int}|null
+     */
+    public static function periodFor(int $submissionId): ?array
+    {
+        $stmt = self::pdo()->prepare(
+            'SELECT p.period_id, p.school_year, p.semester, p.label, p.is_active
+             FROM submissions s
+             INNER JOIN requirements r ON r.requirement_id = s.requirement_id
+             INNER JOIN academic_periods p ON p.period_id = r.period_id
+             WHERE s.submission_id = :id
+             LIMIT 1'
+        );
+        $stmt->execute([':id' => $submissionId]);
+        $row = $stmt->fetch();
+
+        return $row === false ? null : $row;
     }
 
     /** The submissions.status ENUM values, in schema order. */

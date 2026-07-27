@@ -16,7 +16,7 @@ require __DIR__ . '/../../partials/header.php';
 $disabled = $period === null || $docTypes === [];
 ?>
 <section class="form-card">
-    <span class="badge">Administrator</span>
+    <span class="badge">Secretary</span>
     <h1>New requirement</h1>
 
     <?php if (!empty($errors['_csrf'])): ?>

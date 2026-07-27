@@ -21,7 +21,7 @@ $canDecide = $submission['status'] === 'Submitted';
 ?>
 <section class="page-head">
     <div>
-        <span class="badge">Reviewer/Approver</span>
+        <span class="badge">Secretary</span>
         <h1><?= htmlspecialchars($submission['title']) ?></h1>
         <p class="sub">Review this submission and record a decision (FR-13, FR-14).</p>
     </div>

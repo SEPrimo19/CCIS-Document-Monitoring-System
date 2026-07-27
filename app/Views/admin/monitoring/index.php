@@ -28,7 +28,7 @@ $today = date('Y-m-d');
 ?>
 <section class="page-head">
     <div>
-        <span class="badge">Administrator</span>
+        <span class="badge">Secretary</span>
         <h1>Monitoring Board<?= $periodLabel !== null ? ' — ' . htmlspecialchars($periodLabel) : '' ?></h1>
         <p class="sub">Faculty compliance figures, the requirement matrix, and submission search (FR-17, FR-18, FR-19, FR-20).</p>
     </div>

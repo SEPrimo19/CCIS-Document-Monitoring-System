@@ -4,7 +4,7 @@
 -- Generated from the finalized ERD & Data Dictionary in Design/05-data-model.md
 --
 -- Locked design inputs (2026-07-20):
---   Roles:          Administrator, Reviewer/Approver (Program Chair), Faculty
+--   Roles:          Secretary (manages + verifies), Faculty
 --   Workflow:       upload -> review -> approve / return-for-revision -> recorded
 --   Notifications:  in-app only
 --   Archiving:      by academic year (via academic_periods.is_active)
@@ -153,6 +153,11 @@ CREATE TABLE notifications (
     created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     KEY idx_notif_user_read (user_id, is_read),
     KEY idx_notif_sub (submission_id),
+    -- Serves the reminder dedup LEFT JOIN (same user+type+submission on a given
+    -- day) so it stays an index seek, not a per-load table scan, as the table grows.
+    KEY idx_notif_dedup (user_id, type, submission_id, created_at),
+    -- Serves the notification centre's "newest first for this user" ordering.
+    KEY idx_notif_user_created (user_id, created_at),
     CONSTRAINT fk_notif_user FOREIGN KEY (user_id)       REFERENCES users(user_id) ON DELETE CASCADE,
     CONSTRAINT fk_notif_sub  FOREIGN KEY (submission_id) REFERENCES submissions(submission_id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
