@@ -3,11 +3,43 @@
 Capstone project · Northwest Samar State University · College of Computing and Information Sciences.
 
 **Stack:** PHP (back-end) · MySQL (database) · HTML5 / CSS3 / JavaScript (front-end) · web-based.
-**Methodology:** RAD / Prototyping. See `../ROADMAP.md` for the full development plan.
+**Methodology:** RAD / Prototyping.
 
 A plain-PHP MVC application: a front controller, a small router, PDO models, and
 server-rendered views. No framework and no build step — PHP, MySQL, and static
 CSS/JS only.
+
+---
+
+## ▶ Running this on your computer
+
+**New here? Read [SETUP.md](SETUP.md).** It walks you through the whole thing on
+a fresh machine — installing XAMPP, downloading this code, creating the one
+config file a download deliberately leaves out, and the exact commands to run.
+About 15 minutes, with a troubleshooting section for everything that commonly
+goes wrong.
+
+If XAMPP with PHP 8.1+ is already installed, the short version is:
+
+```
+git clone https://github.com/SEPrimo19/CCIS-Document-Monitoring-System.git
+cd CCIS-Document-Monitoring-System
+copy .env.example .env
+```
+
+Start **MySQL** in the XAMPP Control Panel, then:
+
+```
+C:\xampp\php\php.exe scripts/db_setup.php
+C:\xampp\php\php.exe scripts/migrate.php
+C:\xampp\php\php.exe -S localhost:8000 -t public
+```
+
+Open <http://localhost:8000> and sign in as `secretary@nwssu.edu.ph` /
+`Secretary@123`. A fresh database has no requirements yet, so start there:
+**Requirements → New requirement**.
+
+---
 
 ## Structure
 ```

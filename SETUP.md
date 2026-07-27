@@ -1,9 +1,34 @@
 # Running CCIS-DMS on another computer
 
 Follow this start to finish and the system will run on a fresh machine. It takes
-about 15 minutes, most of which is the XAMPP download.
+about 15 minutes, most of which is downloading XAMPP.
 
-Nothing here needs an internet connection except step 1.
+You need an internet connection for steps 1 and 2 only. Everything after that
+runs entirely offline on your own machine.
+
+## The short version
+
+If you already have XAMPP with PHP 8.1+ installed, this is the whole thing:
+
+```
+git clone https://github.com/SEPrimo19/CCIS-Document-Monitoring-System.git
+cd CCIS-Document-Monitoring-System
+copy .env.example .env
+```
+
+Start **MySQL** in the XAMPP Control Panel, then:
+
+```
+C:\xampp\php\php.exe scripts/db_setup.php
+C:\xampp\php\php.exe scripts/migrate.php
+C:\xampp\php\php.exe -S localhost:8000 -t public
+```
+
+Open <http://localhost:8000> and sign in as `secretary@nwssu.edu.ph` /
+`Secretary@123`.
+
+If any of that fails, or you are starting from nothing, follow the full steps
+below — they explain what each command does and how to fix the common problems.
 
 ---
 
@@ -40,33 +65,68 @@ is rejected.
 
 ---
 
-## 2. Get the project files
+## 2. Download the source code
 
-Copy the whole `ccis-dms` folder to the new computer — USB, Google Drive, or
-`git clone` if you are using the repository. Put it anywhere you like; it does
-**not** have to live inside `C:\xampp\htdocs`.
+The project lives at:
 
-Two things are deliberately **not** included when you copy from git, and you
-must create them yourself in the next steps:
+**<https://github.com/SEPrimo19/CCIS-Document-Monitoring-System>**
 
-| Missing | Why | Fixed in step |
+Put it anywhere you like — Desktop, Documents, wherever. It does **not** have to
+live inside `C:\xampp\htdocs`. Avoid folder names with unusual characters.
+
+### Option A — Git (recommended)
+
+If you have Git installed (`git --version` to check; otherwise get it from
+<https://git-scm.com/download/win>):
+
+```
+git clone https://github.com/SEPrimo19/CCIS-Document-Monitoring-System.git
+cd CCIS-Document-Monitoring-System
+```
+
+The advantage is that `git pull` later fetches any updates without redoing the
+setup.
+
+### Option B — Download ZIP (no Git needed)
+
+1. Open the repository link above in a browser.
+2. Click the green **Code** button → **Download ZIP**.
+3. Right-click the downloaded file → **Extract All…**
+4. Open the extracted folder. If it is named
+   `CCIS-Document-Monitoring-System-master`, that is normal.
+
+> **Extract it before using it.** Windows lets you browse *inside* a `.zip`
+> without unpacking, and the commands below will fail confusingly if you try to
+> run them from there.
+
+### Option C — USB or Google Drive
+
+If someone hands you the folder directly, just copy it across. In this case
+`.env` and any uploaded documents come with it, so step 3 may already be done —
+just confirm the `.env` file exists.
+
+### What is deliberately missing from a Git/ZIP download
+
+| Missing | Why | Fixed in |
 |---|---|---|
 | `.env` | It holds database credentials, so it is git-ignored on purpose | Step 3 |
-| The contents of `storage/uploads/` | Uploaded documents are git-ignored | Step 5 (recreated empty) |
+| Uploaded documents in `storage/uploads/` | Faculty documents are git-ignored — you start with an empty folder | Nothing to do; the app creates files as you upload |
 
-> **If you are copying the folder directly (USB / Drive) rather than using git**,
-> `.env` and the uploaded files come along with it. Skip nothing, but step 3 will
-> already be done — just confirm the file exists.
+This is expected, not a broken download.
 
 ---
 
 ## 3. Create the `.env` file — do not skip this
 
-In the `ccis-dms` folder, copy `.env.example` and name the copy `.env`.
+In the project folder, copy `.env.example` and name the copy `.env`.
 
 ```
 copy .env.example .env
 ```
+
+(On PowerShell you can also use `Copy-Item .env.example .env`. In File Explorer:
+copy-paste the file and rename the copy to exactly `.env` — no `.txt` on the end.
+Turn on **View → File name extensions** so you can see what it is really called.)
 
 Open `.env` and make sure this line is present and uncommented:
 
@@ -97,7 +157,9 @@ which is simpler and avoids configuring a virtual host.
 
 ## 5. Create and populate the database
 
-Open a terminal **in the `ccis-dms` folder** and run these two commands in order:
+Open a terminal **in the project folder** and run these two commands in order.
+(Quickest way to get a terminal in the right place: open the folder in File
+Explorer, then type `cmd` in the address bar and press Enter.)
 
 ```
 C:\xampp\php\php.exe scripts/db_setup.php
@@ -105,8 +167,8 @@ C:\xampp\php\php.exe scripts/migrate.php
 ```
 
 The first creates the empty `ccis_dms` database. The second creates all 11
-tables and inserts the starting data: the roles, five document types, one
-academic period, and five user accounts.
+tables and inserts the starting data: the two roles, five document types, one
+academic period, and four user accounts (one Secretary and three Faculty).
 
 You should see it finish with `DONE. 11 tables: ...`.
 
@@ -133,6 +195,18 @@ browser to:
 **<http://localhost:8000>**
 
 You should see the login page.
+
+### Starting it again next time
+
+Once setup is done you never repeat steps 1–5. To run the system on any later
+day, just start **MySQL** in the XAMPP Control Panel and run:
+
+```
+C:\xampp\php\php.exe -S localhost:8000 -t public
+```
+
+Do **not** run `migrate.php` again unless you want to erase everything and start
+from a clean slate.
 
 ---
 
@@ -206,7 +280,20 @@ You started the server without `-t public`, so it is serving the wrong folder.
 Stop it and re-run the exact command in step 6.
 
 **A page says "No active academic period is set"**
-Sign in as Administrator, go to **Periods**, and press **Make active** on one.
+Sign in as the Secretary, go to **Periods**, and press **Make active** on one.
+
+**`'git' is not recognized` / `'php' is not recognized`**
+Git is not installed (use Option B in step 2 instead), or you are typing `php`
+rather than the full path. This project always spells out
+`C:\xampp\php\php.exe` so it works without adding anything to your PATH.
+
+**`Could not open input file: scripts/db_setup.php`**
+Your terminal is not in the project folder. `cd` into the folder that contains
+`README.md` and `SETUP.md`, then run the command again.
+
+**The site loads but every page is blank**
+Check the terminal running the server — PHP prints the error there. The most
+common cause is MySQL having stopped since you started the server.
 
 ---
 
