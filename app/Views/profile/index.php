@@ -80,6 +80,19 @@ require __DIR__ . '/../partials/header.php';
             <?php endif; ?>
         </div>
 
+        <?php // Gates the email change only, so it is not `required` — the server ?>
+        <?php // decides, and asks for it only when the address actually differs. ?>
+        <?php // The id differs from the change-password form's field below: two ?>
+        <?php // controls on one page cannot share an id without breaking labels. ?>
+        <div class="field">
+            <label for="profile_current_password">Current password</label>
+            <input type="password" id="profile_current_password" name="current_password" autocomplete="current-password">
+            <p class="field-help">Needed only if you are changing your email address.</p>
+            <?php if (!empty($profileErrors['current_password'])): ?>
+                <p class="field-err"><?= htmlspecialchars($profileErrors['current_password']) ?></p>
+            <?php endif; ?>
+        </div>
+
         <div class="field">
             <label for="program_dept">Program / department</label>
             <input type="text" id="program_dept" name="program_dept" value="<?= htmlspecialchars($input['program_dept']) ?>" maxlength="80" placeholder="BSIT">

@@ -22,10 +22,14 @@ use App\Models\User;
  *     those columns — so a forged role_id in the POST body has nothing to bind
  *     to. The user id always comes from the session, never from the request.
  *
- *  2. **A password change must prove knowledge of the current password.** An
- *     unattended signed-in browser must not be enough to lock the real owner
- *     out of their account, so the current password is verified with
- *     password_verify() before the new hash is written.
+ *  2. **Changing a sign-in credential must prove knowledge of the current
+ *     password.** An unattended signed-in browser must not be enough to lock
+ *     the real owner out of their account, so the current password is verified
+ *     with password_verify() before a new hash is written — and, for the same
+ *     reason, before the email address is changed. Email is the login
+ *     identifier and there is no self-service reset and no mail delivery, so
+ *     changing it is a *harder* lockout than changing the password. Name and
+ *     program/department carry no such risk and stay editable without one.
  */
 final class ProfileController extends Controller
 {
@@ -61,12 +65,34 @@ final class ProfileController extends Controller
         }
 
         $errors = $this->validateProfile($input, (int) $profile['user_id']);
+
+        $email = Auth::normalizeEmail($input['email']);
+
+        // Re-authenticate an email change (see rule 2 in the class docblock).
+        // Only when the address actually differs: demanding a password to fix
+        // a typo in a surname would be friction with nothing behind it. Skipped
+        // when the address itself failed validation — there is no change to
+        // gate yet, and the user should see both problems at once rather than
+        // one after the other.
+        $emailChanged = !isset($errors['email']) && $email !== Auth::normalizeEmail($profile['email']);
+
+        if ($emailChanged) {
+            // Never trimmed: leading/trailing spaces are legitimate password
+            // characters (same rule as changePassword()).
+            $currentPassword = (string) ($_POST['current_password'] ?? '');
+
+            if ($currentPassword === '') {
+                $errors['current_password'] = 'Enter your current password to change your email address.';
+            } elseif (!password_verify($currentPassword, $profile['password_hash'])) {
+                $errors['current_password'] = 'That is not your current password.';
+            }
+        }
+
         if ($errors !== []) {
             $this->render($profile, $input, $errors, []);
             return;
         }
 
-        $email = Auth::normalizeEmail($input['email']);
         $userId = (int) $profile['user_id'];
 
         User::updateOwnProfile(
@@ -82,9 +108,21 @@ final class ProfileController extends Controller
         Auth::refreshIdentity($input['first_name'], $input['last_name'], $email);
 
         $ip = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
-        $this->audit($userId, 'profile_update', $email, $ip);
+        // On an email change record BOTH addresses: the new one alone would
+        // leave no trail back to the account as it was, which is exactly what
+        // an investigator needs after a disputed change. Capped to the
+        // audit_log.details column width (VARCHAR(255)).
+        $detail = $emailChanged
+            ? mb_substr(sprintf('email %s -> %s', $profile['email'], $email), 0, 255)
+            : $email;
+        $this->audit($userId, 'profile_update', $detail, $ip);
 
-        $this->flash('ok', 'Your profile was updated.');
+        $this->flash(
+            'ok',
+            $emailChanged
+                ? 'Your profile was updated. Sign in with your new email address from now on.'
+                : 'Your profile was updated.'
+        );
         $this->redirectToProfile();
     }
 
