@@ -43,3 +43,37 @@ if (!function_exists('period_label')) {
         return ($period['label'] ?? '') !== '' ? (string) $period['label'] : $fallback;
     }
 }
+
+if (!function_exists('brand_logo')) {
+    /**
+     * URL of the college/department logo, or null when none has been supplied.
+     *
+     * The logo is a supplied asset, not a committed one, so every screen has to
+     * render correctly both before and after it arrives: callers fall back to
+     * the "CCIS-DMS" wordmark while this returns null. Several extensions are
+     * accepted so whichever format the college hands over drops in without a
+     * code change — SVG first, since it stays sharp at any size.
+     *
+     * The lookup is cached for the request: the sidebar and the mobile header
+     * both call this on every page, and one stat() is enough for both.
+     */
+    function brand_logo(): ?string
+    {
+        static $resolved = false;
+        static $url = null;
+
+        if ($resolved) {
+            return $url;
+        }
+        $resolved = true;
+
+        foreach (['logo.svg', 'logo.png', 'logo.webp', 'logo.jpg', 'logo.jpeg'] as $candidate) {
+            if (is_file(BASE_PATH . '/public/assets/img/' . $candidate)) {
+                $url = asset('img/' . $candidate);
+                break;
+            }
+        }
+
+        return $url;
+    }
+}

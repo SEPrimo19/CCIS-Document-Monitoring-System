@@ -12,6 +12,9 @@
     --info: #1f4e8c;
     --info-bg: #e8f0fb;
     --shadow: 0 1px 3px rgba(16, 24, 40, .08), 0 1px 2px rgba(16, 24, 40, .06);
+    /* Sidebar width and the screen width below which it stops being a column.
+       Kept as tokens so the layout and its breakpoint are stated once. */
+    --sidebar-w: 240px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -139,20 +142,48 @@ body {
 .foot { margin-top: 2.5rem; text-align: center; color: var(--muted); font-size: .85rem; }
 .foot code { background: var(--border); padding: .1rem .35rem; border-radius: 4px; }
 
-/* --- Shared app layout (header/nav + main) --- */
-.topbar {
-    background: var(--surface);
-    border-bottom: 1px solid var(--border);
+/* --- Shared app layout: fixed sidebar + content column ---
+   The sidebar is a grid column rather than position:fixed so the content
+   column's width is computed by the browser and never needs a matching
+   margin-left kept in sync by hand. */
+.app-shell { min-height: 100vh; }
+
+.app-shell-auth {
+    display: grid;
+    grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
+    align-items: start;
 }
 
-.topbar-inner {
-    max-width: 900px;
-    margin: 0 auto;
-    padding: .85rem 1.25rem;
+/* Keyboard users would otherwise walk the whole nav on every page load. */
+.skip-link {
+    position: absolute;
+    left: -9999px;
+    top: 0;
+    z-index: 10;
+    background: var(--brand);
+    color: #fff;
+    padding: .6rem 1rem;
+    border-radius: 0 0 8px 0;
+    font-size: .85rem;
+    font-weight: 600;
+    text-decoration: none;
+}
+.skip-link:focus { left: 0; }
+
+.sidebar {
+    position: sticky;
+    top: 0;
+    align-self: start;
+    /* Own scrollbar: the Secretary's menu plus the account block can outrun a
+       short laptop viewport, and the page must not scroll to reach "Log out". */
+    max-height: 100vh;
+    overflow-y: auto;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 1.25rem 1rem;
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
+    flex-direction: column;
+    gap: 1.25rem;
 }
 
 .brand {
@@ -164,23 +195,128 @@ body {
 }
 
 .brand .badge { margin-bottom: 0; }
-.brand-name { font-weight: 600; font-size: .95rem; }
+.brand-text { display: flex; flex-direction: column; gap: .3rem; align-items: flex-start; }
+.brand-name { font-weight: 600; font-size: .95rem; line-height: 1.25; }
 
-.topbar-nav { display: flex; align-items: center; gap: 1rem; }
+/* Fixed box so a tall, wide, or not-quite-square logo cannot shift the whole
+   sidebar layout; object-fit keeps its aspect ratio inside that box. */
+.brand-logo {
+    width: 40px;
+    height: 40px;
+    flex: none;
+    object-fit: contain;
+}
+
+.sidenav { display: flex; flex-direction: column; gap: .15rem; }
+
+.sidenav-heading {
+    margin: .9rem 0 .25rem;
+    font-size: .7rem;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+.sidenav-heading:first-child { margin-top: 0; }
+
+.sidenav-link {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .5rem .65rem;
+    border-radius: 8px;
+    font-size: .875rem;
+    font-weight: 600;
+    color: var(--muted);
+    text-decoration: none;
+}
+.sidenav-link:hover { color: var(--brand); background: var(--info-bg); }
+
+/* Current page: colour alone would fail WCAG 1.4.1, so it also carries a solid
+   fill and a left rule. */
+.sidenav-link.is-current {
+    color: var(--brand);
+    background: var(--info-bg);
+    box-shadow: inset 3px 0 0 var(--brand);
+}
+
+.sidebar-foot {
+    margin-top: auto;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+    align-items: flex-start;
+}
+
+/* --- Mobile header (narrow screens only; see the media query below) --- */
+.topbar { display: none; }
+
+.topbar-brand { display: flex; align-items: center; gap: .5rem; text-decoration: none; }
+.topbar-logo { width: 28px; height: 28px; object-fit: contain; }
+
+.nav-toggle {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    font: inherit;
+    font-size: .85rem;
+    font-weight: 600;
+    color: var(--text);
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: .4rem .7rem;
+    cursor: pointer;
+}
+.nav-toggle:hover { color: var(--brand); border-color: var(--brand); }
+
+/* Three bars drawn from one element: a box plus two shadows, so the button
+   needs no icon font and no extra markup. */
+.nav-toggle-bars,
+.nav-toggle-bars::before,
+.nav-toggle-bars::after {
+    display: block;
+    width: 16px;
+    height: 2px;
+    background: currentColor;
+    border-radius: 2px;
+}
+.nav-toggle-bars { position: relative; }
+.nav-toggle-bars::before,
+.nav-toggle-bars::after { content: ""; position: absolute; left: 0; }
+.nav-toggle-bars::before { top: -5px; }
+.nav-toggle-bars::after { top: 5px; }
+
+/* --- Signed-out brand bar (login screen) --- */
+.auth-brandbar {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .75rem;
+    padding: 2.5rem 1.25rem 0;
+}
+.auth-logo { width: 56px; height: 56px; object-fit: contain; }
 
 /* Now an <a> to /profile, not a <span>. There is no site-wide anchor reset, so
    without these it would carry the UA's permanent underline and give no hover
-   feedback — every other topbar link (.notif-link, .logout-btn) uses exactly
-   this idiom instead. .role-pill inside keeps its own colour. */
+   feedback — every other nav link (.notif-link, .logout-btn) uses exactly
+   this idiom instead. .role-pill inside keeps its own colour.
+   Wraps because the sidebar is only 240px: a long name plus a role pill has to
+   fall onto a second line rather than push a scrollbar across the column. */
 .who {
     font-size: .85rem;
     color: var(--muted);
     display: flex;
     align-items: center;
-    gap: .5rem;
+    flex-wrap: wrap;
+    gap: .35rem .5rem;
     text-decoration: none;
 }
 .who:hover { color: var(--brand); text-decoration: underline; }
+.who-name { font-weight: 600; color: var(--text); }
+.who:hover .who-name { color: var(--brand); }
 
 .role-pill {
     display: inline-block;
@@ -313,33 +449,48 @@ body {
 .error-card h1 { margin: .75rem 0 .5rem; }
 .error-card .sub { color: var(--muted); }
 
-/* --- Admin sub-navigation --- */
-.subnav {
-    background: var(--bg);
-    border-bottom: 1px solid var(--border);
+/* --- Narrow screens: the sidebar stops being a column ---
+   Two behaviours, deliberately layered so the menu is never unreachable:
+
+   * No JavaScript — the sidebar simply stacks above the content as a normal
+     block. Longer to scroll past, but every link works.
+   * With JavaScript (app.js puts `.js` on <html> before paint) it collapses
+     into a drawer behind the "Menu" button in the mobile header.
+
+   The `.js` scoping is what makes that safe: the collapsed state is only ever
+   applied when the script that can re-open it is actually running. */
+@media (max-width: 899px) {
+    .app-shell-auth { grid-template-columns: minmax(0, 1fr); }
+
+    .sidebar {
+        position: static;
+        max-height: none;
+        border-right: 0;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .js .topbar {
+        display: flex;
+        align-items: center;
+        gap: .75rem;
+        padding: .7rem 1.25rem;
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+    }
+
+    /* The drawer proper. `display` (not height/transform) because the sidebar
+       is a flex container whose collapsed state must take no space at all.
+       DOM order is already header -> sidebar -> content, so an open drawer
+       lands directly beneath its button and pushes the page down; nothing is
+       hidden or overlaid. */
+    .js .sidebar { display: none; }
+    .js .nav-open .sidebar { display: flex; }
 }
 
-.subnav-inner {
-    /* The administrator subnav is nine links. Without wrapping, flex would
-       shrink them below their content width at tablet sizes and break labels
-       mid-phrase ("Document / Types"); wrapping onto a second row keeps every
-       label intact. */
-    flex-wrap: wrap;
-    row-gap: .35rem;
-    max-width: 900px;
-    margin: 0 auto;
-    padding: .5rem 1.25rem;
-    display: flex;
-    gap: 1.25rem;
+/* Tighter gutters on a phone; the desktop rule is a comfortable 3rem. */
+@media (max-width: 599px) {
+    .wrap { padding: 1.75rem 1rem; }
 }
-
-.subnav-inner a {
-    font-size: .85rem;
-    font-weight: 600;
-    color: var(--muted);
-    text-decoration: none;
-}
-.subnav-inner a:hover { color: var(--brand); text-decoration: underline; }
 
 /* --- Card link (dashboard shortcuts into a feature area) --- */
 .card-link { font-weight: 600; color: var(--brand); text-decoration: none; font-size: .85rem; }
