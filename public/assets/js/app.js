@@ -75,3 +75,30 @@
         }
     });
 })();
+
+// Confirmation guard for forms that silently reshape other screens.
+// Opt in per form with data-confirm="<message>"; the message is shown before
+// the POST is allowed through. Wired here rather than an inline onclick
+// because the app's CSP (default-src 'self', no 'unsafe-inline') blocks
+// inline handlers outright.
+//
+// This is a mis-click guard, not a security control — without JavaScript the
+// form submits as it always did. The server remains the only real authority,
+// so nothing here can be relied on for authorisation.
+(function () {
+    'use strict';
+
+    document.addEventListener('DOMContentLoaded', function () {
+        var forms = document.querySelectorAll('form[data-confirm]');
+
+        for (var i = 0; i < forms.length; i++) {
+            forms[i].addEventListener('submit', function (event) {
+                var message = this.getAttribute('data-confirm');
+
+                if (message && !window.confirm(message)) {
+                    event.preventDefault();
+                }
+            });
+        }
+    });
+})();

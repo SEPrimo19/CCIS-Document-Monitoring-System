@@ -8,9 +8,13 @@
 require __DIR__ . '/../../partials/header.php';
 
 $hasActive = false;
+// Name of the period currently active, so the "make active" confirmation can
+// say which one is about to be closed rather than warning in the abstract.
+$activeName = null;
 foreach ($periods as $p) {
     if ((int) $p['is_active'] === 1) {
         $hasActive = true;
+        $activeName = period_label($p);
         break;
     }
 }
@@ -89,13 +93,20 @@ foreach ($periods as $p) {
                     </td>
                     <td class="table-actions" data-label="Actions">
                         <a href="<?= url('/admin/periods/' . $period['period_id'] . '/edit') ?>" class="btn-sm btn-secondary">Edit</a>
+                        <?php // Both actions silently reshape every other screen — closing a ?>
+                        <?php // period empties the checklists, review queue and monitoring ?>
+                        <?php // board; activating one closes whichever period is open. They ?>
+                        <?php // are one click next to a plain "Edit", so they are guarded by ?>
+                        <?php // data-confirm (wired in app.js — the CSP blocks inline onclick). ?>
                         <?php if ($isActive): ?>
-                            <form method="post" action="<?= url('/admin/periods/' . $period['period_id'] . '/deactivate') ?>" class="inline-form">
+                            <form method="post" action="<?= url('/admin/periods/' . $period['period_id'] . '/deactivate') ?>" class="inline-form"
+                                  data-confirm="Close &quot;<?= htmlspecialchars($name) ?>&quot;?&#10;&#10;No period will be active. Faculty checklists, the review queue and the monitoring board stay empty until you activate another one.&#10;&#10;Nothing is deleted — this period moves to the archive.">
                                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
                                 <button type="submit" class="btn-sm btn-danger">Close period</button>
                             </form>
                         <?php else: ?>
-                            <form method="post" action="<?= url('/admin/periods/' . $period['period_id'] . '/activate') ?>" class="inline-form">
+                            <form method="post" action="<?= url('/admin/periods/' . $period['period_id'] . '/activate') ?>" class="inline-form"
+                                  data-confirm="Make &quot;<?= htmlspecialchars($name) ?>&quot; the active period?&#10;&#10;<?= $activeName !== null ? 'This closes &quot;' . htmlspecialchars($activeName) . '&quot; and moves it to the archive.&#10;' : '' ?>Faculty checklists, the review queue and the monitoring board all switch to the new period.&#10;&#10;Nothing is deleted.">
                                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
                                 <button type="submit" class="btn-sm btn-primary-sm">Make active</button>
                             </form>
