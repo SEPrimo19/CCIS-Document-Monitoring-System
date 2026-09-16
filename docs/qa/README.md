@@ -46,6 +46,21 @@ then `scripts/migrate.php`), where their fixture assumptions hold and there is
 nothing of value to lose. Run them there, not against demo data you care about.
 If you must run them against live data, take a `mysqldump` first.
 
+**And read this before restoring one.** A default `mysqldump` of this database
+begins with `CREATE DATABASE ... ccis_dms` and `USE ccis_dms`, so piping it into
+*any* database name loads it into **ccis_dms** regardless. On 2026-09-17 a dump
+was loaded into a scratch database to recover a single row and instead reverted
+the live schema to its pre-migration state — `users.program_id` and
+`avatar_path` dropped, the status enum back to `Returned-for-revision`.
+Recovery was only cheap because `migrate_batch_a.php` and `migrate_batch_c.php`
+are idempotent and simply re-applied. Either strip those two lines first, or
+dump with `--no-create-db` and restore with an explicit database argument, and
+check what the file actually contains before running it:
+
+```
+grep -iE "^USE |^CREATE DATABASE" dump.sql
+```
+
 This is not hypothetical: on 2026-09-16 a full-suite run against the live demo
 data broke the faculty3 seed login and altered submissions, and had to be
 restored by hand from a measurement taken beforehand.

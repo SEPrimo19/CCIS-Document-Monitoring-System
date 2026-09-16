@@ -42,7 +42,39 @@ $canDecide = $submission['status'] === 'Submitted';
     </dl>
 
     <?php if ($submission['file_id'] !== null): ?>
-        <a href="<?= url('/documents/' . $submission['file_id'] . '/download') ?>" class="btn-sm btn-primary-sm">Download document</a>
+        <?php
+        // FR-41. A PDF is rendered here so the decision can be made without
+        // leaving the page; anything else is offered as a download, because
+        // browsers cannot display .doc/.docx and this project has no converter.
+        // Handing the file to an external preview service would send a staff
+        // compliance document off campus, so that option is refused outright —
+        // an honest "download to read this one" beats an empty frame.
+        $fileExt = strtolower(pathinfo((string) $submission['file_name'], PATHINFO_EXTENSION));
+        $canPreview = $fileExt === 'pdf';
+        ?>
+        <div class="doc-actions">
+            <a href="<?= url('/documents/' . $submission['file_id'] . '/download') ?>" class="btn-sm btn-primary-sm">Download document</a>
+            <?php if (!$canPreview): ?>
+                <span class="muted-note">Preview is available for PDF files only &mdash; <?= htmlspecialchars(strtoupper($fileExt)) ?> documents open in Word.</span>
+            <?php endif; ?>
+        </div>
+
+        <?php if ($canPreview): ?>
+            <?php // The ONLY framed resource in the application. /documents/{id}/view
+                  // relaxes X-Frame-Options to SAMEORIGIN on its own response; this
+                  // page keeps DENY and stays unframeable itself. ?>
+            <div class="doc-viewer">
+                <iframe class="doc-frame"
+                        src="<?= url('/documents/' . $submission['file_id'] . '/view') ?>"
+                        title="<?= htmlspecialchars($submission['file_name']) ?>"
+                        loading="lazy"></iframe>
+            </div>
+            <p class="muted-note">
+                Showing <?= htmlspecialchars($submission['file_name']) ?>.
+                <a href="<?= url('/documents/' . $submission['file_id'] . '/view') ?>" target="_blank" rel="noopener">Open in a new tab</a>
+                if the preview is hard to read here.
+            </p>
+        <?php endif; ?>
     <?php else: ?>
         <p class="muted-note">No file on record for this version.</p>
     <?php endif; ?>

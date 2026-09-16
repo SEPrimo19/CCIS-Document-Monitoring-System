@@ -170,6 +170,10 @@ $router->get('/reviewer/compliance', [ReviewerController::class, 'compliance']);
 $router->get('/reviewer/status/{status}', [ReviewerController::class, 'byStatus']);
 
 $router->get('/documents/{id}/download', [DocumentController::class, 'download']);
+// FR-41: the same bytes served inline for the in-app viewer. PDFs only —
+// see DocumentController::view() for why, and for the framing headers it
+// relaxes on this response alone.
+$router->get('/documents/{id}/view', [DocumentController::class, 'preview']);
 $router->get('/submissions/{id}', [SubmissionController::class, 'show']);
 
 // Any authenticated role may browse the archive; what they SEE is scoped by
