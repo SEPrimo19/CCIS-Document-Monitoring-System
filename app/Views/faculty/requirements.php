@@ -39,7 +39,7 @@ $statusPillClass = [
     </p>
 <?php else: ?>
     <div class="table-wrap">
-        <table class="table table--stack">
+        <table class="table table--stack table--checklist">
             <thead>
                 <tr>
                     <th>Requirement</th>
@@ -87,14 +87,25 @@ $statusPillClass = [
                             <?php if ($canUpload): ?>
                                 <form method="post" enctype="multipart/form-data" action="<?= url('/faculty/submissions/' . $row['submission_id'] . '/upload') ?>" class="upload-form">
                                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
-                                    <input type="file" name="document" accept=".pdf,.doc,.docx" required>
+                                    <?php // FR-7: still a plain POST + CSRF + multipart submit. The ?>
+                                    <?php // <label> wraps the input, so clicking it opens the picker ?>
+                                    <?php // with no script involved; app.js only swaps the text below ?>
+                                    <?php // for the chosen filename once it is running. ?>
+                                    <label class="file-field" data-file-field>
+                                        <input class="file-field-input" type="file" name="document" accept=".pdf,.doc,.docx" required data-file-input>
+                                        <span class="file-field-text" data-file-text>Choose file</span>
+                                    </label>
                                     <button type="submit" class="btn-sm btn-primary-sm">Upload</button>
                                 </form>
                             <?php endif; ?>
                             <?php if ($hasFile): ?>
                                 <a href="<?= url('/documents/' . $row['file_id'] . '/download') ?>" class="btn-sm btn-secondary">Download</a>
                             <?php endif; ?>
-                            <a href="<?= url('/submissions/' . $row['submission_id']) ?>" class="btn-sm btn-secondary">Details</a>
+                            <?php // Always last, and always on its own line at desktop (see ?>
+                            <?php // .action-details) so every Action cell reads the same way: ?>
+                            <?php // what you can DO with this requirement, then where to ?>
+                            <?php // read about it. ?>
+                            <a href="<?= url('/submissions/' . $row['submission_id']) ?>" class="btn-sm btn-secondary action-details">Details</a>
                         </td>
                     </tr>
                 <?php endforeach; ?>

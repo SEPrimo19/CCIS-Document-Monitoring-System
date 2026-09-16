@@ -81,11 +81,20 @@ if echo "$fac_dash_body" | grep -qE 'href="/admin/|href="/reviewer/'; then
 else
   pass "Faculty sidebar contains no /admin or /reviewer links"
 fi
+# The Faculty sidebar USED to be deliberately unheaded ("too few items to need
+# the Secretary's group headings"). The client compared the two menus and asked
+# for one consistent pattern, so the expectation is now inverted: headings are
+# required, in the same .sidenav-heading markup the Secretary uses.
 if echo "$fac_dash_body" | grep -q 'sidenav-heading'; then
-  fail "Faculty sidebar shows Secretary-style section headings (Overview/Review/Configure/Records) -- should be the short unheaded Faculty menu"
+  pass "Faculty sidebar carries .sidenav-heading groups, matching the Secretary's pattern"
 else
-  pass "Faculty sidebar correctly omits the Secretary's section headings"
+  fail "Faculty sidebar has no .sidenav-heading groups -- it should be grouped like the Secretary's menu"
 fi
+# ...but only ITS OWN groups. Review/Configure/Records head Secretary-only
+# screens, so a Faculty menu showing them would be advertising pages the server
+# will 403. Overview and Documents are the two the Faculty menu should have.
+fac_headings=$(echo "$fac_dash_body" | grep -o '<p class="sidenav-heading">[^<]*</p>' | sed -E 's/.*>([^<]*)<.*/\1/' | tr '\n' ',' | sed 's/,$//')
+assert_eq "Faculty sidebar headings are Overview + Documents only" "Overview,Documents" "$fac_headings"
 
 # --- Secretary sidebar DOES contain the admin links (sanity: the assertion
 # above isn't vacuously true because the check itself never fires) ---
@@ -95,6 +104,51 @@ if echo "$sec_dash_body" | grep -q 'href="/admin/requirements"'; then
 else
   fail "Secretary sidebar unexpectedly missing /admin links -- control check failed, casts doubt on the Faculty-link assertion above"
 fi
+
+# --- Persistent top bar: unread indicator (FR-23) + logout (FR-4) ---
+# The bar renders at every width for both roles. Two things it must never get
+# wrong: the bell is an icon, so the unread count has to reach a screen reader
+# through the accessible name; and logout must stay a POST + CSRF form, because
+# a GET logout is forgeable from any third-party page.
+check_topbar() {
+  local body="$1" who="$2"
+
+  local label
+  label=$(echo "$body" | grep -o 'aria-label="Notifications[^"]*"' | head -1 | sed -E 's/aria-label="([^"]*)"/\1/')
+  if echo "$label" | grep -qE '^Notifications \((no unread|[0-9]+ unread)\)$'; then
+    pass "$who top bar: bell has a counted accessible name (\"$label\")"
+  else
+    fail "$who top bar: bell accessible name is \"$label\" -- expected \"Notifications (N unread)\" or \"(no unread)\""
+  fi
+
+  if echo "$body" | grep -q 'class="topbar-action notif-bell" href="/notifications"'; then
+    pass "$who top bar: bell links to /notifications"
+  else
+    fail "$who top bar: no bell link to /notifications"
+  fi
+
+  local logout_forms logout_links
+  logout_forms=$(echo "$body" | grep -c 'action="/logout"')
+  logout_links=$(echo "$body" | grep -c 'href="/logout"')
+  assert_eq "$who: exactly one logout control on the page" "1" "$logout_forms"
+  assert_eq "$who: zero GET/link-style logout controls" "0" "$logout_links"
+
+  if echo "$body" | grep -A2 'action="/logout"' | grep -q 'name="csrf_token"'; then
+    pass "$who: logout form carries a csrf_token hidden input"
+  else
+    fail "$who: logout form has no csrf_token hidden input"
+  fi
+
+  # The sidebar's Notifications entry is kept on purpose alongside the bell --
+  # it is navigation to a screen, the bell is a status indicator.
+  if echo "$body" | grep -q 'class="sidenav-link notif-link'; then
+    pass "$who: sidebar keeps its Notifications nav link alongside the bell"
+  else
+    fail "$who: sidebar Notifications nav link is missing"
+  fi
+}
+check_topbar "$sec_dash_body" "Secretary"
+check_topbar "$fac_dash_body" "Faculty"
 
 # --- Active-page highlight: the specific case called out in the brief ---
 body=$(curl -s -c "$SEC" -b "$SEC" "$BASE/admin/requirements/new")

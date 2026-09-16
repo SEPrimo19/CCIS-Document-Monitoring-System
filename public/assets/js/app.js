@@ -149,3 +149,47 @@
         sync();
     });
 })();
+
+// Compact file control on the faculty checklist (FR-7): echo the chosen
+// filename back into the styled label. Wired here, from the same-origin
+// external script, because the app's CSP (default-src 'self', no
+// 'unsafe-inline') blocks inline handlers outright.
+//
+// This only ever ENHANCES. The label wraps a real <input type="file">, so with
+// scripting off the native control renders as it always did (CSS keys the
+// compact presentation off the `.js` class this file sets) and the form is the
+// same POST + CSRF + multipart submit either way. Nothing here validates: the
+// server still decides what file is acceptable (FR-8).
+(function () {
+    'use strict';
+
+    document.addEventListener('DOMContentLoaded', function () {
+        var fields = document.querySelectorAll('[data-file-field]');
+
+        for (var i = 0; i < fields.length; i++) {
+            (function (field) {
+                var input = field.querySelector('[data-file-input]');
+                var text = field.querySelector('[data-file-text]');
+
+                if (!input || !text) {
+                    return;
+                }
+
+                var placeholder = text.textContent;
+
+                input.addEventListener('change', function () {
+                    // Cancelling the picker clears the selection, so the label
+                    // has to be able to go back as well as forward.
+                    var name = input.files && input.files.length > 0 ? input.files[0].name : '';
+
+                    text.textContent = name || placeholder;
+                    // The label is only ~7.5rem wide and ellipsises a long
+                    // filename; the tooltip is how the whole name stays
+                    // readable.
+                    field.title = name;
+                    field.classList.toggle('has-file', name !== '');
+                });
+            }(fields[i]));
+        }
+    });
+})();

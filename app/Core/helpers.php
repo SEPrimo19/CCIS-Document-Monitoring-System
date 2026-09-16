@@ -54,8 +54,8 @@ if (!function_exists('brand_logo')) {
      * accepted so whichever format the college hands over drops in without a
      * code change — SVG first, since it stays sharp at any size.
      *
-     * The lookup is cached for the request: the sidebar and the mobile header
-     * both call this on every page, and one stat() is enough for both.
+     * The lookup is cached for the request: the sidebar and the top bar both
+     * call this on every page, and one stat() is enough for both.
      */
     function brand_logo(): ?string
     {
@@ -75,5 +75,31 @@ if (!function_exists('brand_logo')) {
         }
 
         return $url;
+    }
+}
+
+if (!function_exists('user_initials')) {
+    /**
+     * One or two initials for the sidebar avatar, e.g. "JD" for Juan Dela Cruz.
+     *
+     * This is the fallback the avatar shows until a profile image exists, so it
+     * has to produce something for every name the users table can hold: a
+     * single-word name yields one letter, and a name that is entirely
+     * punctuation or whitespace yields "?" rather than an empty circle.
+     * mb_* throughout — first_name/last_name are utf8mb4 and a multi-byte
+     * first character must not be sliced in half.
+     */
+    function user_initials(string $firstName, string $lastName): string
+    {
+        $letters = '';
+
+        foreach ([$firstName, $lastName] as $part) {
+            $part = trim($part);
+            if ($part !== '') {
+                $letters .= mb_substr($part, 0, 1);
+            }
+        }
+
+        return $letters !== '' ? mb_strtoupper($letters) : '?';
     }
 }

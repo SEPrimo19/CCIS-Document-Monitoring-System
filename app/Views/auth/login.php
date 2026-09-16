@@ -8,7 +8,12 @@
 require __DIR__ . '/../partials/header.php';
 ?>
 <section class="auth-card">
-    <span class="badge">CCIS-DMS</span>
+    <?php // The brandbar above already carries the logo when one is supplied,
+    // so the wordmark would just repeat it. Falls back to the wordmark when
+    // there is no logo file, matching partials/header.php. ?>
+    <?php if (brand_logo() === null): ?>
+        <span class="badge">CCIS-DMS</span>
+    <?php endif; ?>
     <h1>Sign in</h1>
     <p class="sub">College of Computing and Information Sciences &middot; NwSSU</p>
 

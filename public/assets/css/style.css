@@ -148,11 +148,22 @@ body {
    margin-left kept in sync by hand. */
 .app-shell { min-height: 100vh; }
 
+/* Named areas rather than source order: the top bar has to come BEFORE the
+   sidebar in the DOM (so the narrow-screen drawer opens under its own button)
+   but must render BESIDE it, above the content column, at desktop. Areas let
+   one DOM order serve both, and the narrow-screen override below is a single
+   re-declaration instead of a reshuffle. */
 .app-shell-auth {
     display: grid;
     grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
+    grid-template-areas:
+        "sidebar topbar"
+        "sidebar main";
     align-items: start;
 }
+.app-shell-auth > .topbar { grid-area: topbar; }
+.app-shell-auth > .sidebar { grid-area: sidebar; }
+.app-shell-auth > .app-main { grid-area: main; }
 
 /* Keyboard users would otherwise walk the whole nav on every page load. */
 .skip-link {
@@ -250,14 +261,96 @@ body {
     align-items: flex-start;
 }
 
-/* --- Mobile header (narrow screens only; see the media query below) --- */
-.topbar { display: none; }
+/* --- Top bar: persistent at every width ---
+   Carries the two controls that must be reachable from any screen without
+   opening a menu — the unread-notification indicator (FR-23) and logout
+   (FR-4). The "Menu" button and the brand inside it are the narrow-screen
+   half: both are hidden here and switched on only under `.js` below the
+   sidebar breakpoint, where the sidebar has collapsed into a drawer. At
+   desktop the sidebar shows the brand and there is no drawer to open, so the
+   bar is just its right-hand actions. */
+.topbar {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    min-height: 3.25rem;
+    padding: .55rem 1.25rem;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+}
 
-.topbar-brand { display: flex; align-items: center; gap: .5rem; text-decoration: none; }
+.topbar-brand { display: none; align-items: center; gap: .5rem; text-decoration: none; }
+.topbar-brand .badge { margin-bottom: 0; }
 .topbar-logo { width: 28px; height: 28px; object-fit: contain; }
 
-.nav-toggle {
+/* margin-left:auto, not justify-content:space-between — the two controls stay
+   pinned to the trailing edge whether or not the Menu button and brand before
+   them are rendered at this width. */
+.topbar-actions {
     display: flex;
+    align-items: center;
+    gap: .35rem;
+    margin-left: auto;
+}
+
+/* One shared appearance for the bell (an <a>) and logout (a <button> inside a
+   POST form): both must read as the same kind of control, and a <button>
+   inherits neither font nor colour without being told to. */
+.topbar-action {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    padding: .45rem .6rem;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: none;
+    font: inherit;
+    font-size: .85rem;
+    font-weight: 600;
+    color: var(--muted);
+    text-decoration: none;
+    cursor: pointer;
+}
+.topbar-action:hover { color: var(--brand); background: var(--info-bg); }
+
+/* The icons are inline <svg> (no icon library, and the CSP forbids off-origin
+   assets). Everything that paints them lives here rather than on presentation
+   attributes, and currentColor means the hover and the dark theme need no
+   second rule set. */
+.topbar-icon {
+    display: block;
+    width: 20px;
+    height: 20px;
+    flex: none;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* Unread count, pinned to the bell's upper-right. Positioned against
+   .topbar-action, which is the relatively-positioned box. */
+.topbar-badge {
+    position: absolute;
+    top: .1rem;
+    left: 55%;
+    min-width: 1.1rem;
+    padding: 0 .25rem;
+    border-radius: 999px;
+    background: var(--err);
+    color: #fff;
+    font-size: .65rem;
+    font-weight: 700;
+    line-height: 1.1rem;
+    text-align: center;
+}
+
+/* display:none by default: the drawer this opens only exists below the sidebar
+   breakpoint, and only when app.js is running to re-open it. */
+.nav-toggle {
+    display: none;
     align-items: center;
     gap: .5rem;
     font: inherit;
@@ -301,22 +394,67 @@ body {
 
 /* Now an <a> to /profile, not a <span>. There is no site-wide anchor reset, so
    without these it would carry the UA's permanent underline and give no hover
-   feedback — every other nav link (.notif-link, .logout-btn) uses exactly
-   this idiom instead. .role-pill inside keeps its own colour.
-   Wraps because the sidebar is only 240px: a long name plus a role pill has to
-   fall onto a second line rather than push a scrollbar across the column. */
+   feedback — every other nav link (.notif-link, .topbar-action) uses exactly
+   this idiom instead.
+   Avatar and text are a two-column row that must NOT wrap: the sidebar is only
+   240px, so it is the name that has to give (min-width:0 + ellipsis below),
+   not the layout. */
 .who {
     font-size: .85rem;
     color: var(--muted);
     display: flex;
     align-items: center;
-    flex-wrap: wrap;
-    gap: .35rem .5rem;
+    gap: .6rem;
+    width: 100%;
     text-decoration: none;
 }
-.who:hover { color: var(--brand); text-decoration: underline; }
-.who-name { font-weight: 600; color: var(--text); }
-.who:hover .who-name { color: var(--brand); }
+.who:hover { color: var(--brand); }
+.who-text { display: flex; flex-direction: column; min-width: 0; }
+.who-name {
+    font-weight: 600;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.who:hover .who-name { color: var(--brand); text-decoration: underline; }
+
+/* Role, in place of the old .role-pill. It is what the whole menu above is
+   keyed to, so it stays visible — just demoted to a caption under the name
+   now that the avatar owns the eye-catching part of this block. */
+.who-role {
+    font-size: .72rem;
+    color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Profile avatar. A fixed circular frame whose single child is what varies:
+   today .avatar-initials, and from the profile-image work an <img
+   class="avatar-img"> dropped in alongside it — the frame, its size and its
+   place in .sidebar-foot do not move either way. Tokens only, so it keeps its
+   contrast in the dark theme without a second rule set. */
+.avatar {
+    flex: none;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--info-bg);
+    color: var(--brand);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+.avatar-initials {
+    font-size: .8rem;
+    font-weight: 700;
+    letter-spacing: .02em;
+    line-height: 1;
+}
+.avatar-img { width: 100%; height: 100%; object-fit: cover; }
 
 .role-pill {
     display: inline-block;
@@ -337,20 +475,10 @@ body {
 }
 .logout-link:hover { text-decoration: underline; }
 
+/* Logout is a POST form (FR-4), so it needs the margin reset a bare <form>
+   would otherwise contribute to the top bar's flex row. Its button is styled
+   by .topbar-action, shared with the notification bell. */
 .logout-form { margin: 0; }
-.logout-btn {
-    font-size: .85rem;
-    font-weight: 600;
-    color: var(--brand);
-    text-decoration: none;
-    background: none;
-    border: none;
-    padding: 0;
-    margin: 0;
-    font-family: inherit;
-    cursor: pointer;
-}
-.logout-btn:hover { text-decoration: underline; }
 
 /* --- Login --- */
 .auth-card {
@@ -506,7 +634,13 @@ body {
    The `.js` scoping is what makes that safe: the collapsed state is only ever
    applied when the script that can re-open it is actually running. */
 @media (max-width: 899px) {
-    .app-shell-auth { grid-template-columns: minmax(0, 1fr); }
+    .app-shell-auth {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-areas:
+            "topbar"
+            "sidebar"
+            "main";
+    }
 
     .sidebar {
         position: static;
@@ -515,14 +649,12 @@ body {
         border-bottom: 1px solid var(--border);
     }
 
-    .js .topbar {
-        display: flex;
-        align-items: center;
-        gap: .75rem;
-        padding: .7rem 1.25rem;
-        background: var(--surface);
-        border-bottom: 1px solid var(--border);
-    }
+    /* The two narrow-screen halves of the top bar. Scoped to `.js` because
+       both only make sense once the drawer exists: without script the sidebar
+       below is a plain stacked block that already shows the brand and needs
+       no button to reveal it. */
+    .js .nav-toggle { display: flex; }
+    .js .topbar-brand { display: flex; }
 
     /* The drawer proper. `display` (not height/transform) because the sidebar
        is a flex container whose collapsed state must take no space at all.
@@ -536,6 +668,22 @@ body {
 /* Tighter gutters on a phone; the desktop rule is a comfortable 3rem. */
 @media (max-width: 599px) {
     .wrap { padding: 1.75rem 1rem; }
+
+    /* Around 400px the top bar has to fit Menu + brand + bell + logout. The
+       logout label is clipped rather than removed, so the button keeps the
+       accessible name it would otherwise lose by becoming a bare icon. */
+    .topbar { padding: .55rem .85rem; gap: .5rem; }
+    .topbar-action-text {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+    }
 }
 
 /* --- Card link (dashboard shortcuts into a feature area) --- */
@@ -609,11 +757,88 @@ body {
     vertical-align: middle;
 }
 
-.upload-form input[type="file"] {
+/* --- Compact file control (faculty checklist Action column, FR-7) ---
+   A raw <input type="file"> renders as "Choose File / No file chosen": ~200px
+   of vendor chrome inside a table cell, which is what made the Action column
+   twice the width of a Download-only row and pushed the whole table into a
+   horizontal scrollbar.
+
+   Two states, layered on the `.js` hook app.js sets on <html>, because the
+   native control is the only thing that echoes the chosen filename without
+   script:
+
+   * no JS  — the native input renders exactly as it always did. The label's
+              text is clipped (not removed) so it still names the control.
+   * `.js`  — the input shrinks to a focusable 1px box and the label becomes a
+              fixed-width button whose text app.js swaps for the filename.
+
+   Either way the form is a plain POST + CSRF + multipart submit; nothing here
+   is required for it to work. */
+.file-field { display: inline-block; vertical-align: middle; }
+
+.file-field-input {
     font-size: .78rem;
     color: var(--text);
     max-width: 200px;
 }
+
+.file-field-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.js .file-field {
+    position: relative;
+    max-width: 7.5rem;
+    padding: .35rem .7rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text);
+    font-size: .8rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+.js .file-field:hover { background: var(--bg); }
+
+/* The real focus ring: the input itself is invisible, so the ring has to be
+   drawn on the box the user actually sees. */
+.js .file-field:focus-within { outline: 2px solid var(--brand); outline-offset: 1px; }
+
+/* Clipped, not display:none — a `required` control the browser cannot focus
+   makes Chrome refuse the submit outright ("not focusable") instead of showing
+   its validation bubble. */
+.js .file-field-input {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+}
+
+.js .file-field-text {
+    position: static;
+    display: block;
+    width: auto;
+    height: auto;
+    padding: 0;
+    margin: 0;
+    clip: auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* A file is staged but not yet sent — the row's Upload button is still the
+   step that matters, so the cue is a colour change, not another control. */
+.js .file-field.has-file { border-color: var(--brand); color: var(--brand); }
 
 /* --- Data table --- */
 .table-wrap {
@@ -668,6 +893,36 @@ body {
 }
 .table-actions > * + * {
     margin-left: .5rem;
+}
+
+/* --- Faculty checklist table (FR-6) ---
+   Two rules that together stop this table needing a horizontal scrollbar at
+   desktop width, and stop its Action column sizing itself differently per row:
+
+   1. The Requirement title is prose, not a datum, so it may wrap. Every other
+      .table cell is nowrap by default, and a nowrap title was reserving its
+      full single-line width before the Action column had been measured at all.
+   2. One declared width for every Action cell. Without it a Pending row (file
+      control + Upload + Details) and a Submitted row (Download + Details)
+      each size to their own content, which is the ragged alignment the
+      column was reported for. `white-space: normal` is what lets the widest
+      combination — a Revised row, which has all four controls — wrap onto a
+      second line inside that width instead of forcing it wider. */
+@media (min-width: 641px) {
+    .table--checklist th:first-child,
+    .table--checklist td:first-child { white-space: normal; min-width: 10rem; }
+
+    .table--checklist .table-actions { width: 17.5rem; white-space: normal; }
+    .table--checklist .table-actions > * { margin-top: .15rem; margin-bottom: .15rem; }
+
+    /* 3. And one shared rhythm inside that width: the actions that DO
+       something to the requirement on the first line, "Details" on the
+       second, in every row. Left to wrap on its own, Details trails a
+       Submitted row's single Download button but falls below a Pending row's
+       file control + Upload, so no two rows read the same way. Dropped inside
+       the media query on purpose: in the stacked phone layout the whole cell
+       is one short line already and a forced break would only add height. */
+    .table--checklist .action-details { display: block; margin-left: 0; }
 }
 
 /* --- Status pill --- */
