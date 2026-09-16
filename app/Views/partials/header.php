@@ -318,17 +318,10 @@ $notifNavLink = static function () use ($currentPath, $unreadNotifCount): void {
 <?php endif; ?>
 
     <div class="app-main">
-        <?php if ($authUser === null): ?>
-            <?php // Signed out (the login screen): no navigation to show, but the ?>
-            <?php // logo still identifies whose system this is — and replaces the ?>
-            <?php // wordmark when one has been supplied. ?>
-            <div class="auth-brandbar">
-                <?php if ($brandLogo !== null): ?>
-                    <img class="auth-logo" src="<?= htmlspecialchars($brandLogo) ?>" alt="CCIS-DMS" width="56" height="56">
-                <?php else: ?>
-                    <span class="badge">CCIS-DMS</span>
-                <?php endif; ?>
-            </div>
-        <?php endif; ?>
+        <?php // Nothing branded here when signed out. The sign-in card names the
+              // college itself and the seal already sits faintly behind the page;
+              // a large mark above the form pushed it off-centre, and off-screen
+              // entirely on a short viewport. The card is centred in the window
+              // by .app-shell:not(.app-shell-auth) instead. ?>
 
         <main class="wrap" id="main">

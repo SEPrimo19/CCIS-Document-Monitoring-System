@@ -230,6 +230,10 @@ body {
     min-height: 100vh;
     max-height: 100vh;
     overflow-y: auto;
+    /* Without this, reaching the end of the sidebar's own scroll hands the
+       gesture to the page, so a scroll aimed at the menu silently moves the
+       content behind it — and the menu appears to drift on its own. */
+    overscroll-behavior: contain;
     background: var(--surface);
     border-right: 1px solid var(--border);
     padding: 1.25rem 1rem;
@@ -331,7 +335,14 @@ body {
    sidebar breakpoint, where the sidebar has collapsed into a drawer. At
    desktop the sidebar shows the brand and there is no drawer to open, so the
    bar is just its right-hand actions. */
+/* Pinned: the search, the unread count and Log out are wanted at any scroll
+   position, and the bar is short enough that holding it costs little height.
+   z-index keeps it over the content it scrolls past; the sidebar is a separate
+   column so the two never overlap. */
 .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
     display: flex;
     align-items: center;
     gap: .75rem;
@@ -1796,13 +1807,34 @@ body {
 .has-brand-mark::before {
     content: "";
     position: fixed;
-    inset: 0;
+    /* Centred on the CONTENT PANEL, not the browser window: with the sidebar
+       occupying a fixed column, a viewport-centred mark sits visibly off to the
+       left of the area it is supposed to sit behind. Inset by the sidebar width
+       and the top bar's height so the seal is centred in what the reader is
+       actually looking at. Still fixed, so it does not travel with the scroll. */
+    top: 3.25rem;
+    right: 0;
+    bottom: 0;
+    left: 0;
     background-repeat: no-repeat;
     background-position: center;
-    background-size: min(62vmin, 560px);
+    background-size: min(52vmin, 460px);
     opacity: var(--watermark-opacity);
     pointer-events: none;
     z-index: 0;
+}
+/* Signed in, at desktop, the content panel starts after the sidebar. */
+.app-shell-auth.has-brand-mark::before { left: var(--sidebar-w); }
+/* Signed out there is no sidebar and no top bar, so it fills the window. */
+.app-shell:not(.app-shell-auth).has-brand-mark::before { top: 0; left: 0; }
+
+/* Must come AFTER the two rules above: a media query adds no specificity, so
+   source order is what decides. Declared earlier (inside the <=899px block up
+   the file) it was silently losing to the desktop inset, and the mark stayed
+   240px off-centre on a phone. */
+@media (max-width: 899px) {
+    /* Sidebar is a stacked drawer here, so the panel is the full width again. */
+    .app-shell-auth.has-brand-mark::before { left: 0; }
 }
 .brand-mark-svg::before  { background-image: url("../img/logo.svg"); }
 .brand-mark-png::before  { background-image: url("../img/logo.png"); }
@@ -1813,3 +1845,19 @@ body {
 /* Real content above the mark. Without this the fixed pseudo-element, which
    establishes a stacking context, would paint over the page. */
 .app-shell > * { position: relative; z-index: 1; }
+
+/* --- Signed-out layout ----------------------------------------------------
+   The sign-in card is the only thing on the page, so it is centred in the
+   window rather than pushed down from the top. min-height on the shell (not
+   the card) is what lets `margin: auto` resolve vertically; the card keeps its
+   own max-width. Padding rather than pure centring so a short viewport, or a
+   validation error growing the card, scrolls instead of clipping it. */
+.app-shell:not(.app-shell-auth) {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 2rem 1rem;
+}
+.app-shell:not(.app-shell-auth) .app-main { width: 100%; }
+.app-shell:not(.app-shell-auth) .auth-card { margin: 0 auto; }
