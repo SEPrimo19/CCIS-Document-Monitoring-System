@@ -38,6 +38,10 @@
     /* Sidebar width and the screen width below which it stops being a column.
        Kept as tokens so the layout and its breakpoint are stated once. */
     --sidebar-w: 240px;
+    /* The top bar is out of flow, so its height has to be stated: the main
+       column pads by it and the watermark insets by it. One token so the
+       three cannot drift apart. */
+    --topbar-h: 3.25rem;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -217,8 +221,16 @@ body {
 .skip-link:focus { left: 0; }
 
 .sidebar {
-    position: sticky;
+    /* Fixed, not sticky. Sticky depends on every ancestor staying free of
+       `overflow`, and on the grid area being taller than the element — both
+       are invisible conditions that a later, unrelated change can break
+       without any error. The grid column below still reserves the width, so
+       taking the sidebar out of flow does not let content slide under it. */
+    position: fixed;
     top: 0;
+    left: 0;
+    width: var(--sidebar-w);
+    z-index: 30;
     align-self: start;
     /* Own scrollbar: the Secretary's menu plus the account block can outrun a
        short laptop viewport, and the page must not scroll to reach "Log out".
@@ -340,8 +352,13 @@ body {
    z-index keeps it over the content it scrolls past; the sidebar is a separate
    column so the two never overlap. */
 .topbar {
-    position: sticky;
+    /* Fixed for the same reason, and because as a grid item its containing
+       block was row 1 only — exactly its own height — so sticky had no room to
+       travel and it scrolled away even before the rule above clobbered it. */
+    position: fixed;
     top: 0;
+    left: 0;
+    right: 0;
     z-index: 20;
     display: flex;
     align-items: center;
@@ -674,6 +691,19 @@ body {
     padding: 2rem 1.75rem;
     box-shadow: var(--shadow);
     text-align: center;
+}
+
+/* The seal inside the sign-in card. Sized so the ring wording is still
+   readable (it turns to mush below roughly 64px) without crowding the form. */
+.auth-card-logo {
+    display: block;
+    width: 96px;
+    height: 96px;
+    margin: 0 auto .25rem;
+    object-fit: contain;
+}
+@media (max-width: 480px) {
+    .auth-card-logo { width: 76px; height: 76px; }
 }
 
 .auth-card h1 { margin: .75rem 0 .25rem; font-size: 1.4rem; }
@@ -1812,7 +1842,7 @@ body {
        left of the area it is supposed to sit behind. Inset by the sidebar width
        and the top bar's height so the seal is centred in what the reader is
        actually looking at. Still fixed, so it does not travel with the scroll. */
-    top: 3.25rem;
+    top: var(--topbar-h);
     right: 0;
     bottom: 0;
     left: 0;
@@ -1843,8 +1873,15 @@ body {
 .brand-mark-jpeg::before { background-image: url("../img/logo.jpeg"); }
 
 /* Real content above the mark. Without this the fixed pseudo-element, which
-   establishes a stacking context, would paint over the page. */
-.app-shell > * { position: relative; z-index: 1; }
+   establishes a stacking context, would paint over the page.
+
+   Deliberately does NOT set `position`: an earlier version of this rule used
+   `position: relative`, which has the same specificity as `.topbar`/`.sidebar`
+   but comes later in the file, so it silently replaced their positioning and
+   the chrome scrolled away with the page. z-index alone is enough — both are
+   already positioned, and .app-main gets its own position below. */
+.app-shell > * { z-index: 1; }
+.app-shell > .app-main { position: relative; }
 
 /* --- Signed-out layout ----------------------------------------------------
    The sign-in card is the only thing on the page, so it is centred in the
@@ -1861,3 +1898,31 @@ body {
 }
 .app-shell:not(.app-shell-auth) .app-main { width: 100%; }
 .app-shell:not(.app-shell-auth) .auth-card { margin: 0 auto; }
+
+/* --- Fixed chrome: the offsets the out-of-flow bars leave behind -----------
+   The bar is out of flow, so nothing reserves its height. ONE offset, on the
+   shell, rather than one per child: at narrow widths the sidebar is a drawer
+   that may or may not be in flow (it is display:none when closed), so padding
+   the children instead would either double up when the drawer is open or leave
+   the content under the bar when it is closed. The sidebar is fixed at desktop
+   and so is unaffected by the shell padding either way. */
+.app-shell-auth { padding-top: var(--topbar-h); }
+
+@media (min-width: 900px) {
+    /* The bar starts where the sidebar ends. */
+    .app-shell-auth > .topbar { left: var(--sidebar-w); }
+    /* The sidebar owns the full viewport height; its own scrollbar handles a
+       menu longer than that. */
+    .app-shell-auth > .sidebar { height: 100vh; }
+}
+
+@media (max-width: 899px) {
+    /* Stacked: the sidebar is a drawer in normal flow again, so it must not be
+       fixed, and the bar spans the full width. */
+    .app-shell-auth > .sidebar {
+        position: static;
+        width: auto;
+        height: auto;
+    }
+    .app-shell-auth > .topbar { left: 0; }
+}
