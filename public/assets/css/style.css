@@ -186,7 +186,13 @@ body {
     top: 0;
     align-self: start;
     /* Own scrollbar: the Secretary's menu plus the account block can outrun a
-       short laptop viewport, and the page must not scroll to reach "Log out". */
+       short laptop viewport, and the page must not scroll to reach "Log out".
+       min-height pins the other end: the grid is align-items:start, so without
+       it the panel is only as tall as its own content and stops mid-page. The
+       Secretary's longer menu hid that — the Faculty sidebar, being four items,
+       ended below the account block with page background showing beneath it.
+       min + max together make it exactly one viewport, scrolling inside. */
+    min-height: 100vh;
     max-height: 100vh;
     overflow-y: auto;
     background: var(--surface);
@@ -770,6 +776,9 @@ body {
 
     .sidebar {
         position: static;
+        /* Stacked block / drawer here, not a full-height column: a viewport of
+           min-height would push the page content off-screen below it. */
+        min-height: 0;
         max-height: none;
         border-right: 0;
         border-bottom: 1px solid var(--border);
