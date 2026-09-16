@@ -90,6 +90,46 @@ final class DocumentFile
         return $stmt->fetchAll();
     }
 
+    /**
+     * A Faculty user's OWN uploaded files matching a search term — the second
+     * Faculty group of the role-aware header search (FR-37).
+     *
+     * Reached through the owning submission, with `s.faculty_id` bound from
+     * the session: the ownership test is part of the SQL, so no crafted query
+     * string can surface another faculty member's filename. Mirrors
+     * findWithOwner(), which the download route uses for the same reason.
+     *
+     * Every version, not just the current one — a faculty member searching for
+     * a filename they uploaded should find it even after a resubmission
+     * superseded it. The row carries its submission_id so the view can link to
+     * the document-detail screen (FR-11), which enforces ownership again.
+     *
+     * @return list<array{file_id:int,file_name:string,version_no:int,uploaded_at:string,submission_id:int,status:string,title:string,doc_type_name:string}>
+     */
+    public static function searchOwned(int $facultyId, string $term, int $limit): array
+    {
+        $stmt = self::pdo()->prepare(
+            "SELECT f.file_id, f.file_name, f.version_no, f.uploaded_at,
+                    s.submission_id, s.status,
+                    r.title,
+                    dt.name AS doc_type_name
+             FROM document_files f
+             INNER JOIN submissions s ON s.submission_id = f.submission_id
+             INNER JOIN requirements r ON r.requirement_id = s.requirement_id
+             INNER JOIN document_types dt ON dt.doc_type_id = r.doc_type_id
+             WHERE s.faculty_id = :faculty_id
+               AND f.file_name LIKE :term" . Database::likeEscapeClause() . "
+             ORDER BY f.uploaded_at DESC, f.file_id DESC
+             LIMIT " . (int) $limit
+        );
+        $stmt->execute([
+            ':faculty_id' => $facultyId,
+            ':term'       => Database::likePattern($term),
+        ]);
+
+        return $stmt->fetchAll();
+    }
+
     private static function pdo(): PDO
     {
         static $config = null;

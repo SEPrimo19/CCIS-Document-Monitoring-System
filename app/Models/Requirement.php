@@ -179,6 +179,40 @@ final class Requirement
         return $row === false ? null : $row;
     }
 
+    /**
+     * Requirements whose title matches a search term — the Secretary's half of
+     * the role-aware header search (FR-37).
+     *
+     * Every period, not just the active one: the search box is reachable from
+     * every screen, including the archive, and a Secretary looking for last
+     * semester's portfolio requirement should find it. The period label comes
+     * back with each row so the view can say which one it belongs to.
+     *
+     * The term is bound and its LIKE metacharacters are neutralised by
+     * Database::likePattern(); $limit is an int cast into the SQL, exactly as
+     * AuditLog::search() does, since LIMIT cannot be a bound parameter under
+     * native prepares.
+     *
+     * @return list<array{requirement_id:int,title:string,description:?string,deadline:?string,doc_type_name:string,period_id:int,school_year:string,semester:string,label:?string,is_active:int}>
+     */
+    public static function search(string $term, int $limit): array
+    {
+        $stmt = self::pdo()->prepare(
+            "SELECT r.requirement_id, r.title, r.description, r.deadline,
+                    dt.name AS doc_type_name,
+                    p.period_id, p.school_year, p.semester, p.label, p.is_active
+             FROM requirements r
+             INNER JOIN document_types dt ON dt.doc_type_id = r.doc_type_id
+             INNER JOIN academic_periods p ON p.period_id = r.period_id
+             WHERE r.title LIKE :term" . Database::likeEscapeClause() . "
+             ORDER BY p.is_active DESC, r.deadline ASC, r.title ASC
+             LIMIT " . (int) $limit
+        );
+        $stmt->execute([':term' => Database::likePattern($term)]);
+
+        return $stmt->fetchAll();
+    }
+
     private static function pdo(): PDO
     {
         static $config = null;

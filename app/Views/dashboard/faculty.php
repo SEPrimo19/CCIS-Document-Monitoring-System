@@ -4,6 +4,9 @@
  * @var array{user_id:int,first_name:string,last_name:string,email:string,role_name:string} $user
  * @var array{period_id:int,school_year:string,semester:string,label:?string,start_date:?string,end_date:?string,is_active:int}|null $period
  * @var array{Pending:int,Submitted:int,Approved:int,Revised:int} $counts
+ * @var array{month:string,label:string,prev:string,next:string,start:string,end:string,weeks:list<list<?string>>} $calendarWindow FR-39
+ * @var array<string,array{count:int,overdue:int,items:list<array{title:string,doc_type_name:string,is_overdue:int}>}> $calendarDays FR-39
+ * @var string $calendarToday FR-39
  */
 require __DIR__ . '/../partials/header.php';
 
@@ -51,6 +54,17 @@ $periodLabel = $period !== null
         </article>
     </section>
 <?php endif; ?>
+
+<?php
+// FR-39: deadline calendar, scoped by FacultyController to this faculty
+// member's own submissions. A marked day opens the checklist those deadlines
+// belong to, which is what the client asked a day click to do.
+$calendarDashboardPath = '/faculty/dashboard';
+$calendarTargetPath = '/faculty/requirements';
+$calendarTargetLabel = 'My Requirements';
+$calendarHasPeriod = $period !== null;
+require __DIR__ . '/../partials/deadline-calendar.php';
+?>
 
 <section class="cards">
     <article class="card">

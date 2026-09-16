@@ -53,6 +53,12 @@ SEC_PAGES=(
   "/admin/audit-log:Audit log"
   "/reviewer/queue:Review queue"
   "/reviewer/compliance:Compliance view"
+  "/reviewer/status/approved:Approved submissions (FR-38)"
+  "/reviewer/status/pending:Pending submissions (FR-38)"
+  "/reviewer/status/revised:Revised submissions (FR-38)"
+  "/reviewer/status/submitted:Submitted submissions (FR-38)"
+  "/search:Search, no term (FR-37)"
+  "/search?q=a:Search results (FR-37)"
   "/archive:Archive index"
   "/notifications:Notifications"
   "/profile:Profile"
@@ -65,6 +71,8 @@ done
 FAC_PAGES=(
   "/faculty/dashboard:Faculty dashboard"
   "/faculty/requirements:My Requirements"
+  "/search:Search, no term (FR-37)"
+  "/search?q=a:Search results (FR-37)"
   "/archive:Archive index"
   "/notifications:Notifications"
   "/profile:Profile"
@@ -188,5 +196,115 @@ headers=$(curl -s -D - -o /dev/null -c "$SEC" -b "$SEC" "$BASE/admin/dashboard")
 if echo "$headers" | grep -qi "^Content-Security-Policy:.*default-src 'self'"; then pass "CSP header present with default-src 'self'"; else fail "CSP header missing or does not restrict default-src to 'self'"; fi
 if echo "$headers" | grep -qi "^X-Content-Type-Options: nosniff"; then pass "X-Content-Type-Options: nosniff present"; else fail "X-Content-Type-Options header missing"; fi
 if echo "$headers" | grep -qi "^X-Frame-Options: DENY"; then pass "X-Frame-Options: DENY present"; else fail "X-Frame-Options header missing"; fi
+
+# --- Status sub-navigation under Review (FR-38) ---
+# The client asked for Approved / Pending / Revised as a SUB-level of the
+# Review group, not as three more top-level items, so the assertions are about
+# the nesting as much as the links: a .sidenav-sub wrapper, .sidenav-sublink on
+# each entry, and the wrapper sitting between "Review Queue" and "Faculty
+# Compliance" -- which is what puts the queue (the Submitted screen) next to
+# the other three, so the set reads as complete.
+sec_subnav_body=$(curl -s -c "$SEC" -b "$SEC" "$BASE/admin/dashboard")
+if echo "$sec_subnav_body" | grep -q 'class="sidenav-sub"'; then
+  pass "Secretary sidebar has a .sidenav-sub wrapper (status sub-nav is a sub-level, not four peers)"
+else
+  fail "Secretary sidebar has no .sidenav-sub wrapper -- the status entries would read as top-level items"
+fi
+for st in approved pending revised; do
+  if echo "$sec_subnav_body" | grep -qE '<a class="sidenav-link sidenav-sublink[^"]*" href="/reviewer/status/'"$st"'"'; then
+    pass "Secretary sub-nav has a .sidenav-sublink entry for $st"
+  else
+    fail "Secretary sub-nav missing the .sidenav-sublink entry for $st"
+  fi
+done
+# Deliberately THREE, not four: /reviewer/status/submitted renders (it is a
+# real status) but has no sidebar entry, because Review Queue owns Submitted.
+subnav_count=$(echo "$sec_subnav_body" | grep -o 'href="/reviewer/status/[a-z]*"' | sort -u | wc -l)
+assert_eq "Secretary sub-nav has exactly 3 status entries (Submitted is owned by Review Queue)" "3" "$subnav_count"
+if echo "$sec_subnav_body" | grep -q 'href="/reviewer/status/submitted"'; then
+  fail "Secretary sub-nav links to /reviewer/status/submitted -- that would duplicate Review Queue"
+else
+  pass "Secretary sub-nav does NOT link to /reviewer/status/submitted (Review Queue owns it)"
+fi
+# Ordering: the sub-nav must sit between Review Queue and Faculty Compliance.
+# Scoped to the sidebar <nav> first -- the dashboard BODY also links to
+# /reviewer/queue and /reviewer/compliance (its shortcut cards), and those hits
+# would otherwise land in this sequence and make the assertion meaningless.
+nav_order=$(echo "$sec_subnav_body" | sed -n '/<nav class="sidenav"/,/<\/nav>/p' | grep -oE 'href="/reviewer/queue"|class="sidenav-sub"|href="/reviewer/compliance"' | tr '\n' ',' | sed 's/,$//')
+assert_eq "sub-nav sits directly under Review Queue, above Faculty Compliance" 'href="/reviewer/queue",class="sidenav-sub",href="/reviewer/compliance"' "$nav_order"
+# Faculty must never see it: these are Secretary-only screens and the server
+# 403s them, so advertising them in the Faculty menu would be a broken link.
+if echo "$fac_dash_body" | grep -q 'sidenav-sub'; then
+  fail "Faculty sidebar contains the status sub-nav (Secretary-only screens)"
+else
+  pass "Faculty sidebar contains no status sub-nav"
+fi
+
+# --- The sub-nav highlights the current entry, and only that entry ---
+for st in approved pending revised; do
+  body_st=$(curl -s -c "$SEC" -b "$SEC" "$BASE/reviewer/status/$st")
+  if echo "$body_st" | grep -oE '<a class="sidenav-link sidenav-sublink[^"]*" href="/reviewer/status/'"$st"'"[^>]*>' | grep -q 'is-current'; then
+    pass "/reviewer/status/$st highlights its own sub-nav entry"
+  else
+    fail "/reviewer/status/$st does NOT highlight its own sub-nav entry"
+  fi
+  if echo "$body_st" | grep -oE '<a class="sidenav-link[^"]*" href="/reviewer/queue"[^>]*>' | grep -q 'is-current'; then
+    fail "/reviewer/status/$st incorrectly ALSO highlights 'Review Queue'"
+  else
+    pass "/reviewer/status/$st does not incorrectly highlight 'Review Queue'"
+  fi
+done
+
+# --- Top-bar search field (FR-37) ---
+# The field is in the top bar for BOTH roles. Two things it must not get wrong:
+# it stays a GET (search is read-only, so a POST would be wrong and a CSRF
+# token noise), and the role must not be expressed as a form field -- scoping
+# is decided server-side, so there must be nothing in the markup to edit.
+check_search_field() {
+  local body="$1" who="$2" expected_placeholder="$3"
+
+  if echo "$body" | grep -q '<form class="topbar-search" method="get" action="/search" role="search">'; then
+    pass "$who top bar: search is a GET form to /search"
+  else
+    fail "$who top bar: no GET search form to /search in the top bar"
+  fi
+
+  local placeholder
+  placeholder=$(echo "$body" | grep -o 'placeholder="[^"]*"' | head -1 | sed -E 's/placeholder="([^"]*)"/\1/')
+  assert_eq "$who top bar: search placeholder names that role's scope" "$expected_placeholder" "$placeholder"
+
+  # The only field the form may submit is the term itself.
+  local fields
+  fields=$(echo "$body" | sed -n '/class="topbar-search"/,/<\/form>/p' | grep -o 'name="[^"]*"' | sed -E 's/name="([^"]*)"/\1/' | sort -u | tr '\n' ',' | sed 's/,$//')
+  assert_eq "$who top bar: search form submits only q (no role/scope field to forge)" "q" "$fields"
+
+  if echo "$body" | sed -n '/class="topbar-search"/,/<\/form>/p' | grep -q 'csrf_token'; then
+    fail "$who top bar: search form carries a csrf_token -- it is a read-only GET and should not"
+  else
+    pass "$who top bar: search form carries no csrf_token (read-only GET)"
+  fi
+
+  # The input's only visible text is a placeholder, which is not an accessible
+  # name, so the .sr-only <label> is what a screen reader has to announce.
+  if echo "$body" | grep -q '<label class="sr-only" for="topbar-search-q">'; then
+    pass "$who top bar: search input has a real (visually hidden) label"
+  else
+    fail "$who top bar: search input has no <label> -- a placeholder is not an accessible name"
+  fi
+}
+check_search_field "$sec_dash_body" "Secretary" "Search faculty, requirements, types"
+check_search_field "$fac_dash_body" "Faculty" "Search my requirements and documents"
+
+# --- Search term: echoed back escaped, and only on the results screen ---
+xss_body=$(curl -s -c "$SEC" -b "$SEC" --get --data-urlencode 'q=<script>alert(1)</script>' "$BASE/search")
+if echo "$xss_body" | grep -q '&lt;script&gt;alert(1)&lt;/script&gt;'; then
+  pass "search echoes the term back HTML-escaped"
+else
+  fail "search does not echo the term back escaped"
+fi
+script_tags=$(echo "$xss_body" | grep -c '<script')
+assert_eq "search results page has exactly one <script> tag (the app.js include)" "1" "$script_tags"
+stray_q=$(curl -s -c "$SEC" -b "$SEC" "$BASE/admin/dashboard?q=leaky" | grep -c 'value="leaky"')
+assert_eq "a stray ?q= on another screen is not echoed into the search box" "0" "$stray_q"
 
 result_line

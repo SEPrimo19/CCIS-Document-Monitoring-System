@@ -5,6 +5,9 @@
  * @var array{period_id:int,school_year:string,semester:string,label:?string,start_date:?string,end_date:?string,is_active:int}|null $period
  * @var array{statusCounts:array{Pending:int,Submitted:int,Approved:int,Revised:int},total:int,complianceRate:int,overdueCount:int}|null $figures
  * @var int $awaitingCount submissions waiting on the Secretary's decision (FR-12)
+ * @var array{month:string,label:string,prev:string,next:string,start:string,end:string,weeks:list<list<?string>>} $calendarWindow FR-39
+ * @var array<string,array{count:int,overdue:int,items:list<array{title:string,doc_type_name:string,is_overdue:int}>}> $calendarDays FR-39
+ * @var string $calendarToday FR-39
  */
 require __DIR__ . '/../partials/header.php';
 
@@ -106,6 +109,17 @@ $periodLabel = $period !== null
         </section>
     <?php endif; ?>
 <?php endif; ?>
+
+<?php
+// FR-39: deadline calendar. The Secretary's copy links through to the
+// requirements list they publish from; the grid itself is the shared partial,
+// so both roles' calendars stay identical apart from scope and destination.
+$calendarDashboardPath = '/admin/dashboard';
+$calendarTargetPath = '/admin/requirements';
+$calendarTargetLabel = 'Requirements';
+$calendarHasPeriod = $period !== null;
+require __DIR__ . '/../partials/deadline-calendar.php';
+?>
 
 <section class="cards">
     <article class="card<?= $awaitingCount > 0 ? ' err' : '' ?>">

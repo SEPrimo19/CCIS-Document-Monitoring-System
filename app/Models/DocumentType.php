@@ -111,6 +111,38 @@ final class DocumentType
         ]);
     }
 
+    /**
+     * Document types whose name or description matches a search term — the
+     * Secretary's half of the role-aware header search (FR-37).
+     *
+     * Inactive types are included (like all()): a type is deactivated, never
+     * deleted, and the requirements already published against it still exist.
+     * `is_active` comes back so the view can label a retired one.
+     *
+     * Two comparisons, two distinct placeholders bound to the same pattern:
+     * PDO with ATTR_EMULATE_PREPARES=false rewrites named placeholders to
+     * positional ones and rejects the same name appearing twice.
+     *
+     * @return list<array{doc_type_id:int,name:string,description:?string,is_active:int}>
+     */
+    public static function search(string $term, int $limit): array
+    {
+        $escape = Database::likeEscapeClause();
+
+        $stmt = self::pdo()->prepare(
+            "SELECT doc_type_id, name, description, is_active
+             FROM document_types
+             WHERE name LIKE :name{$escape} OR description LIKE :description{$escape}
+             ORDER BY name ASC
+             LIMIT " . (int) $limit
+        );
+
+        $pattern = Database::likePattern($term);
+        $stmt->execute([':name' => $pattern, ':description' => $pattern]);
+
+        return $stmt->fetchAll();
+    }
+
     private static function pdo(): PDO
     {
         static $config = null;

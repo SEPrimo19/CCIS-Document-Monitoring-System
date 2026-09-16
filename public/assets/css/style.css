@@ -251,6 +251,27 @@ body {
     box-shadow: inset 3px 0 0 var(--brand);
 }
 
+/* --- Status sub-navigation under Review (FR-38) ---
+   A level below .sidenav-link rather than three more of them: the indent and
+   the rule down the left edge are what say "these belong to the group above",
+   which is the whole point of the client's request — four peers in the Review
+   group would read as four unrelated screens. The links themselves are still
+   .sidenav-link, so `.is-current` needs no second rule set here. */
+.sidenav-sub {
+    display: flex;
+    flex-direction: column;
+    gap: .15rem;
+    margin: .15rem 0 .15rem .65rem;
+    padding-left: .6rem;
+    border-left: 1px solid var(--border);
+}
+
+.sidenav-sublink {
+    padding-top: .35rem;
+    padding-bottom: .35rem;
+    font-size: .8rem;
+}
+
 .sidebar-foot {
     margin-top: auto;
     padding-top: 1rem;
@@ -282,6 +303,62 @@ body {
 .topbar-brand { display: none; align-items: center; gap: .5rem; text-decoration: none; }
 .topbar-brand .badge { margin-bottom: 0; }
 .topbar-logo { width: 28px; height: 28px; object-fit: contain; }
+
+/* --- Top-bar search (FR-37) ---
+   The one element in the bar that may take the leftover width: flex-basis
+   stops it collapsing to nothing between the brand and the icons, and the
+   max-width stops it stretching the full width of a desktop, where a
+   700px-wide input reads as a mistake rather than a search box. */
+.topbar-search {
+    display: flex;
+    align-items: center;
+    gap: .25rem;
+    flex: 1 1 12rem;
+    /* min-width:0 against the flex default of `auto`: without it the input's
+       intrinsic minimum width wins over flex-shrink and the bar overflows
+       instead of the field giving way. */
+    min-width: 0;
+    max-width: 22rem;
+}
+
+/* An <input> inherits neither the app's font nor its colours, and the UA
+   default border is a different grey from every other control on the page. */
+.topbar-search-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: .4rem .65rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+    font-size: .85rem;
+}
+.topbar-search-input::placeholder { color: var(--muted); }
+.topbar-search-input:focus-visible {
+    border-color: var(--brand);
+    outline: 2px solid var(--brand);
+    outline-offset: 1px;
+}
+
+/* Also a .topbar-action, so it is the same size and hover as the bell beside
+   it; only the label differs, and that one is .sr-only because there is no
+   room for a third piece of text in the bar. */
+.topbar-search-btn { flex: none; }
+
+/* Around 400px the bar also has to hold Menu + brand + bell + logout, so the
+   field takes a row of its own instead of squeezing the four of them off the
+   edge. `order` moves it down visually without moving it in the DOM, so the
+   tab order stays brand -> search -> bell -> logout at every width. */
+@media (max-width: 767px) {
+    .topbar { flex-wrap: wrap; }
+
+    .topbar-search {
+        order: 3;
+        flex-basis: 100%;
+        max-width: none;
+    }
+}
 
 /* margin-left:auto, not justify-content:space-between — the two controls stay
    pinned to the trailing edge whether or not the Menu button and brand before
@@ -1369,4 +1446,188 @@ body {
     .alert { border: 1px solid #000; background: #fff; color: #000; }
 
     a { color: #000; text-decoration: none; }
+}
+
+/* --- Dashboard deadline calendar (FR-39) ---
+   A month grid on both dashboards marking the days that carry requirement
+   deadlines. Deliberately NOT built on .table: that class is nowrap with
+   ~.9rem horizontal padding per cell and picks up the .table--stack phone
+   rules, all of which fight a fixed seven-column grid. Every cue below is a
+   class, never an inline style — the CSP (default-src 'self', no
+   'unsafe-inline') drops inline style attributes outright, and a calendar is
+   exactly where per-cell inline colouring is tempting. */
+.calendar-section { margin: 0 0 1.5rem; }
+
+.calendar-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+    padding: 1rem 1.1rem 1.1rem;
+}
+
+.calendar-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem;
+    margin: 0 0 .75rem;
+}
+
+.calendar-month { margin: 0; font-size: 1rem; font-weight: 700; }
+
+/* Month navigation: plain links, styled as controls. They are the whole
+   no-JavaScript story for this component — each one is a GET of the same
+   dashboard with a different ?month=YYYY-MM. */
+.calendar-nav {
+    font-size: .85rem;
+    font-weight: 600;
+    color: var(--brand);
+    text-decoration: none;
+    white-space: nowrap;
+    padding: .3rem .55rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+.calendar-nav:hover { background: var(--bg); }
+.calendar-nav:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+
+/* table-layout: fixed is what keeps seven columns inside a ~360px phone
+   viewport. Left to size themselves, the columns take their width from the
+   widest cell content (a two-digit date plus a count badge) and the table
+   overflows sideways — the classic seven-column phone bug. Fixed layout
+   divides the available width evenly instead, so the grid always fits and the
+   cells simply get narrower. */
+.calendar {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+}
+
+.calendar th {
+    padding: .2rem 0 .45rem;
+    font-size: .7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--muted);
+    text-align: center;
+}
+
+.cal-cell { padding: 2px; text-align: center; vertical-align: middle; }
+
+/* The child combinator matters: it styles the cell's own box (the plain date,
+   or the link that wraps a date with deadlines) without also hitting the
+   .cal-day nested INSIDE that link. */
+.cal-cell > .cal-day,
+.cal-cell > .cal-link {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: .1rem;
+    min-height: 2.5rem;
+    padding: .3rem .15rem;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    font-size: .85rem;
+    color: var(--muted);
+    text-decoration: none;
+}
+
+/* A day with deadlines is the only interactive cell, so it gets the filled
+   treatment; overdue days (FR-20's language, same as the checklist's Overdue
+   marker) swap to the error tokens. */
+.cal-cell > .cal-link {
+    color: var(--brand);
+    background: var(--info-bg);
+}
+.cal-cell.has-overdue > .cal-link {
+    color: var(--err);
+    background: var(--err-bg);
+}
+.cal-cell > .cal-link:hover { border-color: currentColor; }
+.cal-cell > .cal-link:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+
+.cal-link .cal-day { font-size: .9rem; font-weight: 700; }
+.cal-link .cal-count { font-size: .65rem; font-weight: 700; line-height: 1; }
+
+/* Today is marked by the BORDER, a deadline by the fill, so the two read as
+   different things when they land on the same date — and the difference
+   survives for anyone who cannot separate the two colours. */
+.cal-cell.is-today > .cal-day,
+.cal-cell.is-today > .cal-link {
+    border: 2px dashed var(--brand);
+    color: var(--brand);
+    font-weight: 700;
+}
+
+.cal-legend {
+    list-style: none;
+    margin: .8rem 0 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: .3rem 1rem;
+    font-size: .8rem;
+    color: var(--muted);
+}
+.cal-legend-item { display: flex; align-items: center; gap: .4rem; }
+.cal-swatch {
+    width: .9rem;
+    height: .9rem;
+    flex-shrink: 0;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+}
+.cal-swatch-today { border: 2px dashed var(--brand); background: transparent; }
+.cal-swatch-deadline { background: var(--info-bg); border-color: var(--info); }
+.cal-swatch-overdue { background: var(--err-bg); border-color: var(--err); }
+
+/* The month's deadlines in words, under the grid: a 2.5rem cell only has room
+   for a count, and on a phone that count is all the grid can show at all. */
+.cal-list {
+    list-style: none;
+    display: grid;
+    gap: .5rem;
+    margin: .9rem 0 0;
+    padding: .9rem 0 0;
+    border-top: 1px solid var(--border);
+}
+.cal-list-item { display: flex; gap: .6rem; font-size: .88rem; }
+.cal-list-date {
+    flex: 0 0 3.2rem;
+    font-size: .75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    color: var(--muted);
+    padding-top: .15rem;
+}
+.cal-list-title { min-width: 0; word-break: break-word; }
+.cal-list-type { display: block; }
+
+.cal-note { margin: .85rem 0 0; }
+
+.cal-foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .75rem;
+    margin: .9rem 0 0;
+}
+
+/* Phone width: the grid still has to fit seven columns, so the cells lose
+   padding rather than the table gaining a scrollbar. */
+@media (max-width: 480px) {
+    .calendar-card { padding: .85rem .6rem .9rem; }
+    .cal-cell { padding: 1px; }
+    .cal-cell > .cal-day,
+    .cal-cell > .cal-link {
+        min-height: 2.2rem;
+        padding: .25rem .05rem;
+        font-size: .8rem;
+    }
+    .cal-link .cal-day { font-size: .82rem; }
+    .calendar th { font-size: .62rem; }
 }

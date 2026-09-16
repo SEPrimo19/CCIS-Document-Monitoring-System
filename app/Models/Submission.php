@@ -649,6 +649,54 @@ final class Submission
         return $row === false ? null : $row;
     }
 
+    /**
+     * A Faculty user's OWN submissions matching a search term — the Faculty
+     * half of the role-aware header search (FR-37).
+     *
+     * `s.faculty_id = :faculty_id` is a security boundary, not a filter: it is
+     * bound from the session's user id inside the SQL, so there is no query
+     * string a Faculty user can craft that widens the result past their own
+     * rows. Nothing is dropped in PHP afterwards, which is the same IDOR
+     * discipline as Submission::findOwned() and archiveForPeriod($periodId,
+     * $facultyId).
+     *
+     * Matches the requirement title and the document type's name, so
+     * "syllabus" finds the item whether the faculty member remembers it by the
+     * requirement's name or by the kind of document it wants. Every period,
+     * not just the active one — the search box is on every screen including
+     * the archive.
+     *
+     * @return list<array{submission_id:int,status:string,title:string,deadline:?string,doc_type_name:string,period_id:int,school_year:string,semester:string,label:?string,is_active:int}>
+     */
+    public static function searchOwned(int $facultyId, string $term, int $limit): array
+    {
+        $escape = Database::likeEscapeClause();
+
+        $stmt = self::pdo()->prepare(
+            "SELECT s.submission_id, s.status,
+                    r.title, r.deadline,
+                    dt.name AS doc_type_name,
+                    p.period_id, p.school_year, p.semester, p.label, p.is_active
+             FROM submissions s
+             INNER JOIN requirements r ON r.requirement_id = s.requirement_id
+             INNER JOIN document_types dt ON dt.doc_type_id = r.doc_type_id
+             INNER JOIN academic_periods p ON p.period_id = r.period_id
+             WHERE s.faculty_id = :faculty_id
+               AND (r.title LIKE :title{$escape} OR dt.name LIKE :doc_type{$escape})
+             ORDER BY p.is_active DESC, r.deadline ASC, r.title ASC
+             LIMIT " . (int) $limit
+        );
+
+        $pattern = Database::likePattern($term);
+        $stmt->execute([
+            ':faculty_id' => $facultyId,
+            ':title'      => $pattern,
+            ':doc_type'   => $pattern,
+        ]);
+
+        return $stmt->fetchAll();
+    }
+
     /** The submissions.status ENUM values, in schema order. */
     private const STATUSES = ['Pending', 'Submitted', 'Approved', 'Revised'];
 

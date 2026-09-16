@@ -10,7 +10,9 @@
  * horizontal bar, and a vertical list has room for the full labels plus the
  * grouping that explains them. The top bar beside it carries only the two
  * controls that must be reachable from every screen without opening a menu:
- * the unread-notification indicator (FR-23) and logout (FR-4).
+ * the unread-notification indicator (FR-23) and logout (FR-4) — plus, since
+ * the client asked for it, the role-aware search field (FR-37), which belongs
+ * beside them for the same reason: it has to be reachable from every screen.
  *
  * @var string $appName
  */
@@ -34,17 +36,42 @@ $notifLabel = $unreadNotifCount > 0
 
 $brandLogo = brand_logo();
 
+// FR-37: the top bar's search field. The placeholder is the only role-aware
+// thing about the markup — WHAT gets searched is decided server-side in
+// SearchController, never by which control was rendered.
+$isSecretaryNav = \App\Core\Auth::hasRole('Secretary');
+$searchPlaceholder = $isSecretaryNav
+    ? 'Search faculty, requirements, types'
+    : 'Search my requirements and documents';
+
 // Request path, for marking the active nav item. Compared against the values
 // url() produces (which carry BASE_URL), so the highlight survives being
 // served from a subfolder as well as from the web root.
 $currentPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 
+// The field echoes the current term back only on the results screen itself, so
+// the box stays empty everywhere else instead of a `q` left in the URL of some
+// other page reappearing in it. Escaped where it is printed, below.
+//
+// is_string() guards `?q[]=x`, which makes $_GET['q'] an array: casting one to
+// string raises a warning, and this partial renders on EVERY screen, so the
+// cast the single-screen GET filters use is not good enough here.
+$rawSearchTerm = $_GET['q'] ?? '';
+$searchTerm = $currentPath === rtrim(url('/search'), '/') && is_string($rawSearchTerm)
+    ? trim($rawSearchTerm)
+    : '';
+
 /**
  * One sidebar link, marking itself current from the URL so no view has to
  * remember to pass a "which page am I" flag. A child path counts as current
  * too — /admin/requirements/new keeps "Requirements" highlighted.
+ *
+ * $extraClass is how the status sub-navigation (FR-38) indents without a
+ * second copy of this: the sub-links are the same control at a different
+ * level, so they must pick their current state the same way rather than
+ * growing their own rule for it.
  */
-$navLink = static function (string $path, string $label) use ($currentPath): void {
+$navLink = static function (string $path, string $label, string $extraClass = '') use ($currentPath): void {
     $href = url($path);
     $base = rtrim($href, '/');
     $isCurrent = $currentPath === $href
@@ -52,7 +79,8 @@ $navLink = static function (string $path, string $label) use ($currentPath): voi
         || str_starts_with($currentPath, $base . '/');
 
     printf(
-        '<a class="sidenav-link%s" href="%s"%s>%s</a>',
+        '<a class="sidenav-link%s%s" href="%s"%s>%s</a>',
+        $extraClass !== '' ? ' ' . $extraClass : '',
         $isCurrent ? ' is-current' : '',
         htmlspecialchars($href),
         $isCurrent ? ' aria-current="page"' : '',
@@ -115,6 +143,29 @@ $notifNavLink = static function () use ($currentPath, $unreadNotifCount): void {
                 <span class="badge">CCIS-DMS</span>
             <?php endif; ?>
         </a>
+
+        <?php // FR-37: role-aware search. A plain GET form to /search — the ?>
+        <?php // search is read-only, so no POST and no CSRF token, and it ?>
+        <?php // submits with scripting off like any other form. There is no ?>
+        <?php // user/scope parameter on it by design: a Faculty user's results ?>
+        <?php // are narrowed by their own session id inside the SQL, not by ?>
+        <?php // anything this form could be edited to say. ?>
+        <form class="topbar-search" method="get" action="<?= url('/search') ?>" role="search">
+            <label class="sr-only" for="topbar-search-q">Search</label>
+            <input class="topbar-search-input" type="search" id="topbar-search-q" name="q"
+                   value="<?= htmlspecialchars($searchTerm) ?>"
+                   placeholder="<?= htmlspecialchars($searchPlaceholder) ?>"
+                   maxlength="255" autocomplete="off">
+            <button type="submit" class="topbar-action topbar-search-btn">
+                <?php // Same inline-SVG idiom as the bell: no icon library, and ?>
+                <?php // the CSP forbids off-origin assets. ?>
+                <svg class="topbar-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <circle cx="11" cy="11" r="7"/>
+                    <path d="M20 20l-4.3-4.3"/>
+                </svg>
+                <span class="sr-only">Search</span>
+            </button>
+        </form>
 
         <div class="topbar-actions">
             <?php // FR-23: the at-a-glance unread indicator. This duplicates the ?>
@@ -187,6 +238,17 @@ $notifNavLink = static function () use ($currentPath, $unreadNotifCount): void {
 
                 <p class="sidenav-heading">Review</p>
                 <?php $navLink('/reviewer/queue', 'Review Queue'); ?>
+                <?php // FR-38: the status sub-navigation the client asked for, ?>
+                <?php // indented under Review rather than added as three more ?>
+                <?php // top-level items. It sits directly beneath Review Queue ?>
+                <?php // because the two together are the whole set: the queue ?>
+                <?php // IS the Submitted screen (the only status with an action ?>
+                <?php // attached), so a fourth entry here would duplicate it. ?>
+                <div class="sidenav-sub" role="group" aria-label="Review submissions by status">
+                    <?php $navLink('/reviewer/status/approved', 'Approved', 'sidenav-sublink'); ?>
+                    <?php $navLink('/reviewer/status/pending', 'Pending', 'sidenav-sublink'); ?>
+                    <?php $navLink('/reviewer/status/revised', 'Revised', 'sidenav-sublink'); ?>
+                </div>
                 <?php $navLink('/reviewer/compliance', 'Faculty Compliance'); ?>
                 <?php $navLink('/admin/monitoring', 'Monitoring'); ?>
 

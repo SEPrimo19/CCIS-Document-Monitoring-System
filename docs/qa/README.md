@@ -21,6 +21,33 @@ wherever the repo is checked out.
 "391 checks across 13 suites" — not "13 scripts", since the fixture script is
 the 14th file and is not a suite.
 
+## Which suites are safe to run
+
+**Only three suites are safe against a database that holds real data:**
+
+| Safe (read-only) | Destructive (writes, and does NOT restore) |
+|---|---|
+| `suite_navigation.sh` | `suite_profile.sh` |
+| `suite_rbac.sh` | `suite_review.sh` |
+| `smoke_postcommit.sh` | `suite_resubmit.sh` |
+| | `suite_admin_crud.sh` |
+| | `setup_fixtures.sh` |
+
+The destructive ones assert their own mutations, so they report a clean pass
+while leaving the database changed. **`suite_profile.sh` is the worst of them:
+it renames faculty3 and changes that account's email and password, so the
+seeded `faculty3@nwssu.edu.ph` / `Faculty@123` login stops working** — and it
+still reports 18/18 passed.
+
+They were written to run against a **clean reseed** (`scripts/db_setup.php`
+then `scripts/migrate.php`), where their fixture assumptions hold and there is
+nothing of value to lose. Run them there, not against demo data you care about.
+If you must run them against live data, take a `mysqldump` first.
+
+This is not hypothetical: on 2026-09-16 a full-suite run against the live demo
+data broke the faculty3 seed login and altered submissions, and had to be
+restored by hand from a measurement taken beforehand.
+
 ## Re-running
 
 MySQL up, then from the repo root:

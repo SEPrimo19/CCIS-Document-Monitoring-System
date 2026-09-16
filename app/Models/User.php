@@ -538,6 +538,42 @@ final class User
         return $stmt->fetchAll();
     }
 
+    /**
+     * Faculty accounts whose name matches a search term — the Secretary's
+     * half of the role-aware header search (FR-37).
+     *
+     * Matched against the joined "first last" rather than the two columns
+     * separately: that one comparison already covers a term matching either
+     * half, so "Dela" and "Juan Dela Cruz" find the same person. The term
+     * arrives as a bound parameter and its LIKE metacharacters are neutralised
+     * by Database::likePattern(), so a term of "%" matches a literal percent
+     * sign and not every row.
+     *
+     * Active AND inactive accounts, matching User::all(): a deactivated
+     * faculty member's submissions still exist and are still reportable, so a
+     * search that silently skipped them would disagree with every other admin
+     * screen. The status is returned so the view can say which is which.
+     *
+     * @return list<array{user_id:int,first_name:string,last_name:string,email:string,status:string,program_code:?string}>
+     */
+    public static function searchFaculty(string $term, int $limit): array
+    {
+        $stmt = self::pdo()->prepare(
+            "SELECT u.user_id, u.first_name, u.last_name, u.email, u.status,
+                    p.code AS program_code
+             FROM users u
+             INNER JOIN roles ro ON ro.role_id = u.role_id
+             LEFT JOIN programs p ON p.program_id = u.program_id
+             WHERE ro.role_name = 'Faculty'
+               AND CONCAT(u.first_name, ' ', u.last_name) LIKE :term" . Database::likeEscapeClause() . "
+             ORDER BY u.last_name ASC, u.first_name ASC
+             LIMIT " . (int) $limit
+        );
+        $stmt->execute([':term' => Database::likePattern($term)]);
+
+        return $stmt->fetchAll();
+    }
+
     public static function touchLastLogin(int $userId): void
     {
         $stmt = self::pdo()->prepare('UPDATE users SET last_login = NOW() WHERE user_id = :id');

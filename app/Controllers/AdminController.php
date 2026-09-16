@@ -9,6 +9,7 @@ use App\Core\Controller;
 use App\Core\Guard;
 use App\Models\AcademicPeriod;
 use App\Models\AuditLog;
+use App\Models\DeadlineCalendar;
 use App\Models\DocumentType;
 use App\Models\Requirement;
 use App\Models\Submission;
@@ -16,11 +17,11 @@ use App\Models\User;
 use DateTime;
 
 /**
- * Administrator landing, monitoring board (FR-17..FR-20), the audit log view
- * (FR-30, FR-31), and the reports + CSV export view (FR-24, FR-25). The
- * monitoring board is scoped to the single active academic period; reports,
- * unlike monitoring, let the administrator pick any academic period. User
- * accounts are built out later in Phase 4.
+ * Administrator landing (including the deadline calendar, FR-39), monitoring
+ * board (FR-17..FR-20), the audit log view (FR-30, FR-31), and the reports +
+ * CSV export view (FR-24, FR-25). The monitoring board is scoped to the single
+ * active academic period; reports, unlike monitoring, let the administrator
+ * pick any academic period. User accounts are built out later in Phase 4.
  */
 final class AdminController extends Controller
 {
@@ -62,12 +63,32 @@ final class AdminController extends Controller
             ? Submission::awaitingReviewCount((int) $period['period_id'])
             : 0;
 
+        // FR-39: the deadline calendar. The month comes from the existing
+        // dashboard route's `month` query parameter (no new route), and is
+        // validated to YYYY-MM by the model before it reaches either the date
+        // arithmetic or the prev/next links — anything else falls back to the
+        // current month. The Secretary publishes the requirements, so their
+        // calendar is the whole period, unscoped.
+        $today = date('Y-m-d');
+        $calendarWindow = DeadlineCalendar::window(DeadlineCalendar::month($_GET['month'] ?? null));
+        $calendarDays = $period !== null
+            ? DeadlineCalendar::byDay(DeadlineCalendar::forSecretary(
+                (int) $period['period_id'],
+                $calendarWindow['start'],
+                $calendarWindow['end'],
+                $today
+            ))
+            : [];
+
         $this->view('dashboard/admin', [
-            'appName'       => $this->config()['app']['name'],
-            'user'          => Auth::user(),
-            'period'        => $period,
-            'figures'       => $figures,
-            'awaitingCount' => $awaitingCount,
+            'appName'        => $this->config()['app']['name'],
+            'user'           => Auth::user(),
+            'period'         => $period,
+            'figures'        => $figures,
+            'awaitingCount'  => $awaitingCount,
+            'calendarWindow' => $calendarWindow,
+            'calendarDays'   => $calendarDays,
+            'calendarToday'  => $today,
         ]);
     }
 
@@ -303,9 +324,25 @@ final class AdminController extends Controller
      *
      * @param array<string,mixed> $query
      */
+    /**
+     * One GET filter value as a trimmed string (FR-17..FR-19, FR-24..FR-26).
+     *
+     * PHP turns `?period_id[]=1` into an ARRAY, and casting an array to string
+     * raises "Array to string conversion" — which, with APP_ENV=development,
+     * prints this file's path and line number into the response body. An array
+     * here is never a value a filter could use, so it is treated exactly like
+     * an absent parameter rather than being coerced.
+     */
+    private static function queryString(array $query, string $key): string
+    {
+        $value = $query[$key] ?? null;
+
+        return is_string($value) ? trim($value) : '';
+    }
+
     private function facultyNameFilterFrom(array $query): ?string
     {
-        $raw = trim((string) ($query['faculty_name'] ?? ''));
+        $raw = self::queryString($query, 'faculty_name');
 
         return $raw === '' ? null : $raw;
     }
@@ -318,7 +355,7 @@ final class AdminController extends Controller
      */
     private function statusFilterFrom(array $query): ?string
     {
-        $raw = trim((string) ($query['status'] ?? ''));
+        $raw = self::queryString($query, 'status');
 
         return in_array($raw, Submission::statuses(), true) ? $raw : null;
     }
@@ -332,7 +369,7 @@ final class AdminController extends Controller
      */
     private function docTypeFilterFrom(array $query, array $activeDocTypes): ?int
     {
-        $raw = trim((string) ($query['doc_type_id'] ?? ''));
+        $raw = self::queryString($query, 'doc_type_id');
         if ($raw === '' || !ctype_digit($raw)) {
             return null;
         }
@@ -354,7 +391,7 @@ final class AdminController extends Controller
      */
     private function periodIdFilterFrom(array $query, array $periods): ?int
     {
-        $raw = trim((string) ($query['period_id'] ?? ''));
+        $raw = self::queryString($query, 'period_id');
         if ($raw === '' || !ctype_digit($raw)) {
             return null;
         }
@@ -389,7 +426,7 @@ final class AdminController extends Controller
      */
     private function reportKindFrom(array $query): ?string
     {
-        $raw = trim((string) ($query['report'] ?? ''));
+        $raw = self::queryString($query, 'report');
 
         return array_key_exists($raw, self::CSV_REPORTS) ? $raw : null;
     }
@@ -470,7 +507,7 @@ final class AdminController extends Controller
      */
     private function userIdFilterFrom(array $query, array $actors): ?int
     {
-        $raw = trim((string) ($query['user_id'] ?? ''));
+        $raw = self::queryString($query, 'user_id');
         if ($raw === '' || !ctype_digit($raw)) {
             return null;
         }
@@ -491,7 +528,7 @@ final class AdminController extends Controller
      */
     private function actionFilterFrom(array $query, array $actions): ?string
     {
-        $raw = trim((string) ($query['action'] ?? ''));
+        $raw = self::queryString($query, 'action');
 
         return in_array($raw, $actions, true) ? $raw : null;
     }
@@ -506,7 +543,7 @@ final class AdminController extends Controller
      */
     private function dateFilterFrom(array $query, string $key): ?string
     {
-        $raw = trim((string) ($query[$key] ?? ''));
+        $raw = self::queryString($query, $key);
         if ($raw === '') {
             return null;
         }

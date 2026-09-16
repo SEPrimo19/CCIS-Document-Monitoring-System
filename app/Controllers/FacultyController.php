@@ -11,6 +11,7 @@ use App\Core\Database;
 use App\Core\Guard;
 use App\Models\AcademicPeriod;
 use App\Models\AuditLog;
+use App\Models\DeadlineCalendar;
 use App\Models\DocumentFile;
 use App\Models\Notification;
 use App\Models\Submission;
@@ -20,8 +21,9 @@ use Throwable;
 use ZipArchive;
 
 /**
- * Faculty landing + "My Requirements" checklist and upload (FR-6, FR-7,
- * FR-8). My Submissions / document detail are built out later in Phase 4.
+ * Faculty landing (including the deadline calendar, FR-39) + "My Requirements"
+ * checklist and upload (FR-6, FR-7, FR-8). My Submissions / document detail
+ * are built out later in Phase 4.
  */
 final class FacultyController extends Controller
 {
@@ -65,11 +67,36 @@ final class FacultyController extends Controller
             ? Submission::statusCountsForFaculty($facultyId, (int) $period['period_id'])
             : ['Pending' => 0, 'Submitted' => 0, 'Approved' => 0, 'Revised' => 0];
 
+        // FR-39: the deadline calendar. The month comes from the existing
+        // dashboard route's `month` query parameter (no new route), validated
+        // to YYYY-MM by the model before it reaches either the date arithmetic
+        // or the prev/next links.
+        //
+        // Scoped in SQL to this faculty member's own submission rows, bound to
+        // the session's user id — the same id the status counts above are
+        // read with. A requirement published to another program or to other
+        // named individuals (FR-35) has no row for them and so cannot appear,
+        // and nothing is narrowed afterwards in PHP.
+        $today = date('Y-m-d');
+        $calendarWindow = DeadlineCalendar::window(DeadlineCalendar::month($_GET['month'] ?? null));
+        $calendarDays = $period !== null
+            ? DeadlineCalendar::byDay(DeadlineCalendar::forFaculty(
+                $facultyId,
+                (int) $period['period_id'],
+                $calendarWindow['start'],
+                $calendarWindow['end'],
+                $today
+            ))
+            : [];
+
         $this->view('dashboard/faculty', [
-            'appName' => $this->config()['app']['name'],
-            'user'    => $user,
-            'period'  => $period,
-            'counts'  => $counts,
+            'appName'        => $this->config()['app']['name'],
+            'user'           => $user,
+            'period'         => $period,
+            'counts'         => $counts,
+            'calendarWindow' => $calendarWindow,
+            'calendarDays'   => $calendarDays,
+            'calendarToday'  => $today,
         ]);
     }
 

@@ -31,6 +31,17 @@ SECRETARY_GET_ROUTES=(
   "/reviewer/queue"
   "/reviewer/submissions/1/review"
   "/reviewer/compliance"
+  # FR-38 status screens behind the Review sub-nav. All four statuses, not just
+  # the three the sub-nav links to: /reviewer/status/submitted is a real route
+  # (the status exists) and must be just as Secretary-only as the linked three.
+  "/reviewer/status/approved"
+  "/reviewer/status/pending"
+  "/reviewer/status/revised"
+  "/reviewer/status/submitted"
+  # An unknown status is still a Secretary-only route: Faculty must get 403
+  # (role first), not the 404 the Secretary gets, so the route cannot be used
+  # to probe which status values exist.
+  "/reviewer/status/nosuchstatus"
 )
 
 for route in "${SECRETARY_GET_ROUTES[@]}"; do
@@ -64,6 +75,10 @@ SHARED_GET_ROUTES=(
   "/notifications"
   "/archive"
   "/archive/1"
+  # FR-37 search: reachable by both roles, never anonymously. WHAT each role
+  # gets back is asserted separately below -- this is only the route check.
+  "/search"
+  "/search?q=a"
 )
 for route in "${SHARED_GET_ROUTES[@]}"; do
   code=$(http_code "$ANON" "$BASE$route")
@@ -105,5 +120,70 @@ code=$(curl -s -o /dev/null -w "%{http_code}" -c "$SEC" -b "$SEC" -X POST "$BASE
 assert_eq "Secretary POST /faculty/submissions/1/upload -> 403" "403" "$code"
 code=$(curl -s -o /dev/null -w "%{http_code}" -c "$ANON" -b "$ANON" -X POST "$BASE/faculty/submissions/1/upload")
 assert_eq "Anonymous POST /faculty/submissions/1/upload -> 302" "302" "$code"
+
+
+# --- FR-37 search scoping: a role boundary, not a filter ---
+# The search route is shared, so the authorization question is not "may I reach
+# it" but "what does it return". A Faculty user must never see another faculty
+# member's records through it, including by editing the query string. faculty2
+# is a second Faculty account whose data faculty1 must not be able to reach.
+FAC2="$QA/r_fac2.jar"
+rm -f "$FAC2"
+login "$FAC2" "faculty2@nwssu.edu.ph" "Faculty@123" > /dev/null
+
+# 1. The Secretary-only result groups must not render for a Faculty user at
+#    all: faculty names are not in a Faculty user's scope.
+fac_search=$(curl -s -c "$FAC" -b "$FAC" "$BASE/search?q=a")
+for group in 'Faculty (' 'Document types ('; do
+  if echo "$fac_search" | grep -q "section-title\">$group"; then
+    fail "Faculty search renders the Secretary-only group \"$group\""
+  else
+    pass "Faculty search does not render the Secretary-only group \"$group\""
+  fi
+done
+sec_search=$(curl -s -c "$SEC" -b "$SEC" "$BASE/search?q=a")
+if echo "$sec_search" | grep -q 'section-title">Faculty ('; then
+  pass "Secretary search DOES render the Faculty group (control check)"
+else
+  fail "Secretary search is missing the Faculty group -- control check failed, casts doubt on the assertion above"
+fi
+
+# 2. Searching another faculty member's NAME returns nothing of theirs.
+for term in Reyes Angelica faculty2; do
+  hits=$(curl -s -c "$FAC" -b "$FAC" "$BASE/search?q=$term" | grep -oE '[0-9]+ results? for' | grep -oE '^[0-9]+')
+  assert_eq "faculty1 searching \"$term\" (faculty2's identity) returns 0 results" "0" "$hits"
+done
+
+# 3. The rows a Faculty user DOES get back are only their own submissions.
+#    Cross-checked against the other account: the two id sets must not overlap.
+f1_ids=$(curl -s -c "$FAC" -b "$FAC" "$BASE/search?q=a" | grep -oE '/submissions/[0-9]+' | sort -u | tr '\n' ' ' | sed 's/ $//')
+f2_ids=$(curl -s -c "$FAC2" -b "$FAC2" "$BASE/search?q=a" | grep -oE '/submissions/[0-9]+' | sort -u | tr '\n' ' ' | sed 's/ $//')
+if [ -n "$f1_ids" ] && [ -n "$f2_ids" ]; then
+  pass "both faculty accounts get non-empty search results (control check: the overlap test below is not vacuous)"
+else
+  fail "one of the faculty accounts got no search results -- the overlap test below would pass vacuously"
+fi
+overlap=$(comm -12 <(echo "$f1_ids" | tr ' ' '\n' | sort -u) <(echo "$f2_ids" | tr ' ' '\n' | sort -u) | grep -c .)
+assert_eq "faculty1 and faculty2 search results share zero submission ids" "0" "$overlap"
+
+# 4. Crafting a scope parameter onto the query string changes nothing. The
+#    route takes no such parameter by design -- the faculty id is bound from
+#    the session inside the SQL -- so these must all return the same rows as
+#    the plain search above.
+for qs in "q=a&user_id=3" "q=a&faculty_id=3" "q=a&faculty_name=Angelica" "q=a&role=Secretary" "q=a&isSecretary=1"; do
+  crafted=$(curl -s -c "$FAC" -b "$FAC" "$BASE/search?$qs" | grep -oE '/submissions/[0-9]+' | sort -u | tr '\n' ' ' | sed 's/ $//')
+  assert_eq "faculty1 /search?$qs returns only faculty1's own rows" "$f1_ids" "$crafted"
+done
+
+# 5. A document uploaded by one faculty member is invisible to the other, by
+#    filename. (fchapter4.docx belongs to faculty1.)
+f1_file=$(curl -s -c "$FAC" -b "$FAC" "$BASE/search?q=fchapter4" | grep -c 'fchapter4.docx')
+f2_file=$(curl -s -c "$FAC2" -b "$FAC2" "$BASE/search?q=fchapter4" | grep -c 'fchapter4.docx')
+if [ "$f1_file" -gt 0 ]; then
+  pass "faculty1 finds their own uploaded file by name (control check)"
+else
+  fail "faculty1 cannot find their own uploaded file -- control check failed, casts doubt on the assertion below"
+fi
+assert_eq "faculty2 cannot find faculty1's uploaded file by name" "0" "$f2_file"
 
 result_line

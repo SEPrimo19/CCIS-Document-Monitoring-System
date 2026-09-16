@@ -80,6 +80,7 @@ use App\Controllers\PeriodController;
 use App\Controllers\ProfileController;
 use App\Controllers\RequirementController;
 use App\Controllers\ReviewerController;
+use App\Controllers\SearchController;
 use App\Controllers\SubmissionController;
 use App\Controllers\UserController;
 use App\Core\Auth;
@@ -161,6 +162,11 @@ $router->get('/reviewer/queue', [ReviewerController::class, 'queue']);
 $router->get('/reviewer/submissions/{id}/review', [ReviewerController::class, 'review']);
 $router->post('/reviewer/submissions/{id}/review', [ReviewerController::class, 'decide']);
 $router->get('/reviewer/compliance', [ReviewerController::class, 'compliance']);
+// FR-38: one screen per submission status for the active period, behind the
+// sidebar's Review sub-navigation. Extension-less like every other route, and
+// {status} is resolved against the submissions.status enum in the controller —
+// an unknown value is a 404, never a string that reaches SQL.
+$router->get('/reviewer/status/{status}', [ReviewerController::class, 'byStatus']);
 
 $router->get('/documents/{id}/download', [DocumentController::class, 'download']);
 $router->get('/submissions/{id}', [SubmissionController::class, 'show']);
@@ -173,6 +179,12 @@ $router->get('/archive/{id}', [ArchiveController::class, 'show']);
 $router->get('/profile', [ProfileController::class, 'show']);
 $router->post('/profile', [ProfileController::class, 'update']);
 $router->post('/profile/password', [ProfileController::class, 'changePassword']);
+
+// FR-37: role-aware search. Any signed-in role may reach it; what each one
+// searches is decided inside the controller and bound into the SQL, so there
+// is no scope parameter here for a crafted query string to aim at. GET and
+// read-only, so no CSRF — same as the other filter/search forms.
+$router->get('/search', [SearchController::class, 'index']);
 
 $router->get('/notifications', [NotificationController::class, 'index']);
 $router->post('/notifications/{id}/read', [NotificationController::class, 'markRead']);

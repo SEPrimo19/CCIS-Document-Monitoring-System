@@ -21,7 +21,9 @@ use Throwable;
  * Document verification flow (FR-12..FR-15), performed by the Secretary: a
  * queue of Submitted documents and a single-step Approve / Return-for-revision
  * decision, with comments mandatory on return. Also exposes a read-only
- * per-faculty compliance summary (FR-16) reusing the monitoring figures.
+ * per-faculty compliance summary (FR-16) reusing the monitoring figures, and
+ * the per-status submission views (FR-38) behind the sidebar's Review
+ * sub-navigation.
  *
  * The queue is shared rather than assigned — it is not tied to one reviewer
  * account — so it keeps working unchanged if the college ever staffs a second
@@ -43,6 +45,48 @@ final class ReviewerController extends Controller
             'appName'    => $this->config()['app']['name'],
             'period'     => $period,
             'compliance' => $compliance,
+        ]);
+    }
+
+    /**
+     * One status's submissions for the active period (FR-38) — the screens
+     * behind the sidebar's status sub-navigation.
+     *
+     * The status arrives as a URL segment, so it is resolved against
+     * Submission::statuses() (case-insensitively, since the URL is lower-case
+     * and the enum is capitalised) and the CANONICAL enum value is what goes
+     * on to the model. An unrecognised segment is a 404: the sub-nav only ever
+     * links to real statuses, so anything else is a typed or crafted URL, not
+     * a filter to be silently ignored. Nothing user-supplied is interpolated
+     * into SQL, a redirect, or a header.
+     *
+     * Reuses Submission::searchForPeriod() — the same finder behind the
+     * monitoring board's Submission Search (FR-19) — with only the status
+     * filter applied, rather than adding a parallel per-status query that
+     * could drift out of agreement with it.
+     */
+    public function byStatus(string $status): void
+    {
+        Guard::requireRole('Secretary');
+
+        $canonical = $this->canonicalStatus($status);
+        if ($canonical === null) {
+            $this->notFoundPage();
+            return;
+        }
+
+        // Same treatment as every other active-period admin screen (FR-34):
+        // the view renders its own "no active period" notice rather than this
+        // action guessing at a period.
+        $period = AcademicPeriod::active();
+
+        $this->view('reviewer/status', [
+            'appName' => $this->config()['app']['name'],
+            'period'  => $period,
+            'status'  => $canonical,
+            'rows'    => $period !== null
+                ? Submission::searchForPeriod((int) $period['period_id'], null, $canonical, null)
+                : [],
         ]);
     }
 
@@ -225,6 +269,24 @@ final class ReviewerController extends Controller
             DocumentType::all(),
             static fn(array $type): bool => (int) $type['is_active'] === 1
         ));
+    }
+
+    /**
+     * The status segment of /reviewer/status/{status}, resolved to the
+     * canonical submissions.status enum value, or null when it names no real
+     * status. Compared case-insensitively so the URL can stay lower-case while
+     * the value handed to the model is always the enum's own spelling — the
+     * caller passes THAT on, never the raw segment.
+     */
+    private function canonicalStatus(string $status): ?string
+    {
+        foreach (Submission::statuses() as $candidate) {
+            if (strcasecmp($candidate, $status) === 0) {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 
     /**
