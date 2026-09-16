@@ -114,7 +114,7 @@ body {
 .status-bar rect.seg-pending   { fill: var(--muted); }
 .status-bar rect.seg-submitted { fill: var(--info); }
 .status-bar rect.seg-approved  { fill: var(--ok); }
-.status-bar rect.seg-returned  { fill: var(--err); }
+.status-bar rect.seg-revised  { fill: var(--err); }
 
 .status-legend {
     list-style: none;
@@ -136,7 +136,7 @@ body {
 .legend-swatch.seg-pending   { background: var(--muted); }
 .legend-swatch.seg-submitted { background: var(--info); }
 .legend-swatch.seg-approved  { background: var(--ok); }
-.legend-swatch.seg-returned  { background: var(--err); }
+.legend-swatch.seg-revised  { background: var(--err); }
 .legend-pct { color: var(--muted); }
 
 .foot { margin-top: 2.5rem; text-align: center; color: var(--muted); font-size: .85rem; }
@@ -404,6 +404,52 @@ body {
 
 .field-help { margin: .3rem 0 0; font-size: .85rem; color: var(--muted); }
 
+/* --- Requirement audience control (FR-35): a radio group where two of the
+   three options carry a payload panel underneath. All tokenised, so it follows
+   the dark theme without a second rule set. `.is-hidden` is the collapse hook
+   app.js toggles — a class, because the CSP forbids inline style attributes.
+   Without JavaScript nothing carries the class and every panel stays open,
+   which is the progressive-enhancement fallback the form is built for. --- */
+.audience-field {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: .9rem 1rem 1rem;
+}
+.audience-field legend {
+    font-size: .85rem;
+    font-weight: 600;
+    padding: 0 .35rem;
+}
+.audience-field .radio-label,
+.audience-field .checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    font-size: .92rem;
+    font-weight: 400;
+    margin: .5rem 0 0;
+}
+/* .field input is width:100% for text inputs; a radio/checkbox must not be. */
+.audience-field input[type="radio"],
+.audience-field input[type="checkbox"] { width: auto; flex-shrink: 0; }
+.audience-field .field-help { margin: .15rem 0 0 1.55rem; }
+
+.audience-panel {
+    margin: .5rem 0 .25rem 1.55rem;
+    padding-left: .85rem;
+    border-left: 2px solid var(--border);
+}
+.audience-panel.is-hidden { display: none; }
+
+.checkbox-list {
+    list-style: none;
+    margin: .25rem 0 0;
+    padding: 0;
+    max-height: 15rem;
+    overflow-y: auto;
+}
+.checkbox-list .muted-note { margin-left: .2rem; }
+
 .btn-primary {
     width: 100%;
     padding: .65rem 1rem;
@@ -640,7 +686,7 @@ body {
 .status-pill-pending { color: var(--muted); background: var(--border); }
 .status-pill-submitted { color: var(--info); background: var(--info-bg); }
 .status-pill-approved { color: var(--ok); background: var(--ok-bg); }
-.status-pill-returned { color: var(--err); background: var(--err-bg); }
+.status-pill-revised { color: var(--err); background: var(--err-bg); }
 
 /* --- Overdue marker (faculty checklist) --- */
 .overdue {

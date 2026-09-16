@@ -102,3 +102,50 @@
         }
     });
 })();
+
+// Requirement audience control (FR-35): reveal only the payload that belongs to
+// the selected "Applies to" radio. Wired here, from the same-origin external
+// script, because the app's CSP (default-src 'self', no 'unsafe-inline') blocks
+// inline handlers and inline style attributes outright — the collapse is a
+// class, never an element style.
+//
+// This only ever ENHANCES. The form renders and submits all three controls
+// unconditionally; with scripting off nothing is hidden and the page still
+// works, just longer. Hiding a control is not a validation step either —
+// RequirementController::validateAudience() decides which payload counts, so
+// a panel left open by a stale class cannot publish the wrong audience.
+(function () {
+    'use strict';
+
+    document.addEventListener('DOMContentLoaded', function () {
+        var group = document.querySelector('[data-audience]');
+
+        if (!group) {
+            return;
+        }
+
+        var radios = group.querySelectorAll('[data-audience-radio]');
+        var panels = group.querySelectorAll('[data-audience-panel]');
+
+        function sync() {
+            var selected = null;
+            for (var i = 0; i < radios.length; i++) {
+                if (radios[i].checked) {
+                    selected = radios[i].value;
+                }
+            }
+
+            for (var j = 0; j < panels.length; j++) {
+                var panel = panels[j];
+                var isFor = panel.getAttribute('data-audience-panel') === selected;
+                panel.classList.toggle('is-hidden', !isFor);
+            }
+        }
+
+        for (var k = 0; k < radios.length; k++) {
+            radios[k].addEventListener('change', sync);
+        }
+
+        sync();
+    });
+})();

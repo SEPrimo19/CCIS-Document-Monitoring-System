@@ -43,12 +43,19 @@ archive, the document-detail page, academic-period management, and notification
 generation) found the surface sound — no SQL injection, stored XSS, cross-user
 IDOR, privilege escalation, or CSP violation. Specifically confirmed:
 
-- **Self-service profile (FR-5) cannot escalate privilege.** Role and account
-  status are not self-editable: `User::updateOwnProfile()` names only
-  `first_name/last_name/email/program_dept`, and the acting user id comes from
+- **Self-service profile (FR-5) cannot escalate privilege.** Role, account
+  status and academic program are not self-editable: `User::updateOwnProfile()`
+  names only `first_name/last_name/email`, and the acting user id comes from
   the session, never the request — a forged `role_id`, `status`, or `user_id` in
   the POST body has nothing to bind to (verified with a live escalation attempt:
   the row stayed byte-identical and admin routes still returned 403).
+  `program_id` joined that list when requirement audiences started keying off it
+  (FR-35): a self-editable program would have been an obligation-evasion path,
+  letting a faculty member move themselves out of a requirement aimed at their
+  program. It is assigned by the Secretary on the user form instead. Removing
+  the old free-text `program_dept` column also closes **LOW-5** in
+  `SECURITY-FINDINGS-2026-07-24.md` (its 80-character validation cap did not
+  match the column width) by deleting the field the finding was about.
 - **Password change** verifies the current password with `password_verify`
   before writing, bounds the new one in bcrypt's 72-**byte** window, rejects a
   NUL byte as a validation error (not a 500), requires it to differ from the

@@ -121,14 +121,14 @@ final class ReviewerController extends Controller
         $comments = trim((string) ($_POST['comments'] ?? ''));
         $history = Review::historyForSubmission($submissionId);
 
-        if (!in_array($decision, ['Approved', 'Returned-for-revision'], true)) {
+        if (!in_array($decision, ['Approved', 'Revised'], true)) {
             $this->renderReview($submission, $history, $decision, $comments, [
                 'decision' => 'Select a decision.',
             ]);
             return;
         }
 
-        if ($decision === 'Returned-for-revision' && $comments === '') {
+        if ($decision === 'Revised' && $comments === '') {
             $this->renderReview($submission, $history, $decision, $comments, [
                 'comments' => 'Comments are required when returning a document.',
             ]);

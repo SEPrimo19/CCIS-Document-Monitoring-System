@@ -6,7 +6,7 @@
  *
  * @var string $appName
  * @var array{period_id:int,school_year:string,semester:string,label:?string,start_date:?string,end_date:?string,is_active:int}|null $period
- * @var list<array{user_id:int,faculty_name:string,total:int,pending:int,submitted:int,approved:int,returned:int}> $compliance
+ * @var list<array{user_id:int,faculty_name:string,total:int,pending:int,submitted:int,approved:int,revised:int}> $compliance
  */
 require __DIR__ . '/../partials/header.php';
 
@@ -18,7 +18,7 @@ $periodLabel = $period !== null
     <div>
         <span class="badge">Secretary</span>
         <h1>Faculty Compliance<?= $periodLabel !== null ? ' — ' . htmlspecialchars($periodLabel) : '' ?></h1>
-        <p class="sub">Per-faculty summary of submitted, approved, returned, and pending requirements for the active period (FR-16).</p>
+        <p class="sub">Per-faculty summary of submitted, approved, revised, and pending requirements for the active period (FR-16).</p>
     </div>
 </section>
 
@@ -34,7 +34,7 @@ $periodLabel = $period !== null
                     <th>Faculty</th>
                     <th>Submitted</th>
                     <th>Approved</th>
-                    <th>Returned</th>
+                    <th>Revised</th>
                     <th>Pending</th>
                     <th>Total</th>
                     <th>Compliance</th>
@@ -52,7 +52,7 @@ $periodLabel = $period !== null
                         <td data-label="Faculty"><?= htmlspecialchars($row['faculty_name']) ?></td>
                         <td data-label="Submitted"><?= (int) $row['submitted'] ?></td>
                         <td data-label="Approved"><?= (int) $row['approved'] ?></td>
-                        <td data-label="Returned"><?= (int) $row['returned'] ?></td>
+                        <td data-label="Revised"><?= (int) $row['revised'] ?></td>
                         <td data-label="Pending"><?= (int) $row['pending'] ?></td>
                         <td data-label="Total"><?= (int) $row['total'] ?></td>
                         <td data-label="Compliance"><strong><?= $pct ?>%</strong></td>

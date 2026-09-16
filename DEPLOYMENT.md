@@ -200,11 +200,15 @@ php -r 'echo password_hash("PUT-A-STRONG-PASSWORD-HERE", PASSWORD_BCRYPT), PHP_E
 ```
 
 ```sql
-INSERT INTO users (role_id, employee_no, first_name, last_name, email, password_hash, program_dept, status)
+INSERT INTO users (role_id, employee_no, first_name, last_name, email, password_hash, program_id, status)
 VALUES ((SELECT role_id FROM roles WHERE role_name='Secretary'),
         'SEC-001', 'College', 'Secretary', 'secretary@nwssu.edu.ph',
-        '<paste the hash here>', 'CCIS', 'active');
+        '<paste the hash here>', NULL, 'active');
 ```
+
+`program_id` is NULL because the Secretary belongs to the office, not to an
+academic program. Faculty accounts get one of the seeded `programs` rows, which
+is what program-targeted requirements key off (FR-35, FR-36).
 
 Then sign in as that account and create every other user through
 **Users → New user**. There is no public self-registration by design.

@@ -166,15 +166,33 @@ C:\xampp\php\php.exe scripts/db_setup.php
 C:\xampp\php\php.exe scripts/migrate.php
 ```
 
-The first creates the empty `ccis_dms` database. The second creates all 11
-tables and inserts the starting data: the two roles, five document types, one
-academic period, and four user accounts (one Secretary and three Faculty).
+The first creates the empty `ccis_dms` database. The second creates all 13
+tables and inserts the starting data: the two roles, four academic programs,
+five document types, one academic period, and four user accounts (one Secretary
+and three Faculty).
 
-You should see it finish with `DONE. 11 tables: ...`.
+You should see it finish with `DONE. 13 tables: ...`.
 
 > ⚠️ **`migrate.php` is destructive.** It drops and recreates every table, so
 > running it again wipes all submissions, notifications, and audit history. Run
 > it once during setup. Only run it again if you deliberately want a clean slate.
+
+### Already have a database from before 2026-09-16?
+
+If you set this up earlier and have real submissions in it, do **not** run
+`migrate.php` again — it would wipe them. Run the incremental migration instead:
+
+```
+C:\xampp\php\php.exe scripts/migrate_batch_a.php
+```
+
+It adds the `programs` and `requirement_targets` tables, moves each user's
+program from the old free-text `program_dept` column to the new `program_id`
+foreign key, and renames the submission status `Returned-for-revision` to
+`Revised` — all with `ALTER`/`UPDATE`, touching no existing row it does not have
+to. Every step checks whether it has already been applied, so running it twice
+is harmless. A fresh `migrate.php` install already includes all of it and does
+not need this script.
 
 If the `storage/uploads` folder does not exist, the application creates it on the
 first upload — nothing to do.

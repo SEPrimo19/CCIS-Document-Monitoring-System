@@ -28,8 +28,19 @@ use App\Models\User;
  *     with password_verify() before a new hash is written — and, for the same
  *     reason, before the email address is changed. Email is the login
  *     identifier and there is no self-service reset and no mail delivery, so
- *     changing it is a *harder* lockout than changing the password. Name and
- *     program/department carry no such risk and stay editable without one.
+ *     changing it is a *harder* lockout than changing the password. Name
+ *     carries no such risk and stays editable without one.
+ *
+ * What used to be here and no longer is: **program / department**. It was a
+ * free-text field the user could type anything into. Once requirement
+ * audiences could target a program (FR-35), a self-editable program became an
+ * obligation-evasion path — a faculty member could edit their way out of a
+ * requirement aimed at their program. It is now reference data (FR-36)
+ * assigned by the Secretary on the user form, shown read-only below. The POST
+ * body is not merely ignored: User::updateOwnProfile()'s statement does not
+ * name the column at all, so a forged program_id has nothing to bind to.
+ * This also closes LOW-5 in SECURITY-FINDINGS-2026-07-24.md (the
+ * program_dept length-cap mismatch) by removing the field it applied to.
  */
 final class ProfileController extends Controller
 {
@@ -95,13 +106,7 @@ final class ProfileController extends Controller
 
         $userId = (int) $profile['user_id'];
 
-        User::updateOwnProfile(
-            $userId,
-            $input['first_name'],
-            $input['last_name'],
-            $email,
-            $input['program_dept'] === '' ? null : $input['program_dept']
-        );
+        User::updateOwnProfile($userId, $input['first_name'], $input['last_name'], $email);
 
         // The session carries a copy of the identity for the header greeting —
         // refresh it so the change is visible immediately, not next login.
@@ -175,7 +180,7 @@ final class ProfileController extends Controller
      * The signed-in user's DB row. Renders 404 and returns null if the row has
      * vanished mid-session (deleted out from under an open session).
      *
-     * @return array{user_id:int,employee_no:?string,first_name:string,last_name:string,email:string,program_dept:?string,password_hash:string,role_name:string}|null
+     * @return array{user_id:int,employee_no:?string,first_name:string,last_name:string,email:string,program_code:?string,program_name:?string,password_hash:string,role_name:string}|null
      */
     private function currentProfile(): ?array
     {
@@ -190,34 +195,35 @@ final class ProfileController extends Controller
     }
 
     /**
-     * @param array{user_id:int,employee_no:?string,first_name:string,last_name:string,email:string,program_dept:?string,password_hash:string,role_name:string} $profile
-     * @return array{first_name:string,last_name:string,email:string,program_dept:string}
+     * @param array{user_id:int,employee_no:?string,first_name:string,last_name:string,email:string,program_code:?string,program_name:?string,password_hash:string,role_name:string} $profile
+     * @return array{first_name:string,last_name:string,email:string}
      */
     private function inputFromProfile(array $profile): array
     {
         return [
-            'first_name'   => $profile['first_name'],
-            'last_name'    => $profile['last_name'],
-            'email'        => $profile['email'],
-            'program_dept' => (string) ($profile['program_dept'] ?? ''),
+            'first_name' => $profile['first_name'],
+            'last_name'  => $profile['last_name'],
+            'email'      => $profile['email'],
         ];
     }
 
     /**
-     * @return array{first_name:string,last_name:string,email:string,program_dept:string}
+     * The three fields a user may edit about themselves. Anything else in the
+     * POST body — role_id, status, program_id — is simply never read.
+     *
+     * @return array{first_name:string,last_name:string,email:string}
      */
     private function inputFrom(array $post): array
     {
         return [
-            'first_name'   => trim((string) ($post['first_name'] ?? '')),
-            'last_name'    => trim((string) ($post['last_name'] ?? '')),
-            'email'        => trim((string) ($post['email'] ?? '')),
-            'program_dept' => trim((string) ($post['program_dept'] ?? '')),
+            'first_name' => trim((string) ($post['first_name'] ?? '')),
+            'last_name'  => trim((string) ($post['last_name'] ?? '')),
+            'email'      => trim((string) ($post['email'] ?? '')),
         ];
     }
 
     /**
-     * @param array{first_name:string,last_name:string,email:string,program_dept:string} $input
+     * @param array{first_name:string,last_name:string,email:string} $input
      * @return array<string,string>
      */
     private function validateProfile(array $input, int $userId): array
@@ -246,10 +252,6 @@ final class ProfileController extends Controller
             $errors['email'] = 'Enter a valid email address.';
         } elseif (User::existsByEmail(Auth::normalizeEmail($input['email']), $userId)) {
             $errors['email'] = 'Another account already uses this email address.';
-        }
-
-        if (mb_strlen($input['program_dept']) > 80) {
-            $errors['program_dept'] = 'Program / department must be 80 characters or fewer.';
         }
 
         return $errors;
@@ -295,8 +297,8 @@ final class ProfileController extends Controller
     }
 
     /**
-     * @param array{user_id:int,employee_no:?string,first_name:string,last_name:string,email:string,program_dept:?string,password_hash:string,role_name:string} $profile
-     * @param array{first_name:string,last_name:string,email:string,program_dept:string} $input
+     * @param array{user_id:int,employee_no:?string,first_name:string,last_name:string,email:string,program_code:?string,program_name:?string,password_hash:string,role_name:string} $profile
+     * @param array{first_name:string,last_name:string,email:string} $input
      * @param array<string,string> $profileErrors
      * @param array<string,string> $passwordErrors
      * @param array{type:string,message:string}|null $flash

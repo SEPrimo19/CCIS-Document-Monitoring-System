@@ -9,15 +9,23 @@ use App\Core\Controller;
 use App\Core\Csrf;
 use App\Core\Guard;
 use App\Models\AuditLog;
+use App\Models\Program;
 use App\Models\Role;
 use App\Models\User;
 use PDOException;
 
 /**
  * Secretary user management (FR-26): list, create, edit, and
- * deactivate/reactivate accounts, and assign roles. Deactivation is a
- * soft-delete (status), never a row delete, since audit_log and submissions
- * reference user_id.
+ * deactivate/reactivate accounts, and assign roles and academic programs
+ * (FR-36). Deactivation is a soft-delete (status), never a row delete, since
+ * audit_log and submissions reference user_id.
+ *
+ * Program assignment lives HERE rather than on the self-service profile screen
+ * on purpose. Requirement audiences can target a program (FR-35), so a faculty
+ * member able to set their own program could move themselves out of a
+ * requirement aimed at it. The column is therefore Secretary-only, guarded by
+ * the same requireRole('Secretary') as every other action on this controller,
+ * and ProfileController no longer reads a program field at all.
  *
  * Two safety rules are enforced on every mutation that touches role or
  * status, not just in the UI:
@@ -75,7 +83,14 @@ final class UserController extends Controller
         $email = Auth::normalizeEmail($input['email']);
         $passwordHash = password_hash($input['password'], PASSWORD_BCRYPT);
 
-        $newId = User::create($input['first_name'], $input['last_name'], $email, (int) $input['role_id'], $passwordHash);
+        $newId = User::create(
+            $input['first_name'],
+            $input['last_name'],
+            $email,
+            (int) $input['role_id'],
+            $passwordHash,
+            $this->programIdFor($input)
+        );
 
         $adminId = (int) (Auth::user()['user_id'] ?? 0);
         $ip = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
@@ -100,6 +115,7 @@ final class UserController extends Controller
             'last_name'  => $target['last_name'],
             'email'      => $target['email'],
             'role_id'    => (string) $target['role_id'],
+            'program_id' => $target['program_id'] === null ? '' : (string) $target['program_id'],
             'password'   => '',
         ], []);
     }
@@ -159,7 +175,15 @@ final class UserController extends Controller
         // condition, not a bug in the submitted data — show a retry message
         // with the form still filled in, rather than a raw 500.
         try {
-            $saved = User::updateProfileGuardingLastAdmin($userId, $input['first_name'], $input['last_name'], $email, (int) $input['role_id'], $guardLastAdmin);
+            $saved = User::updateProfileGuardingLastAdmin(
+                $userId,
+                $input['first_name'],
+                $input['last_name'],
+                $email,
+                (int) $input['role_id'],
+                $this->programIdFor($input),
+                $guardLastAdmin
+            );
         } catch (PDOException $e) {
             error_log('[CCIS-DMS] user update failed for user ' . $userId . ': ' . $e->getMessage());
             $errors['_form'] = 'Could not save this user just now — another change may have been in progress. Please try again.';
@@ -269,15 +293,29 @@ final class UserController extends Controller
     }
 
     /**
-     * @return array{first_name:string,last_name:string,email:string,role_id:string,password:string}
+     * The posted program_id as it should be stored: null when blank (the
+     * Secretary and any unassigned account carry no program), otherwise the
+     * validated id. Only ever called after validate() has confirmed the id
+     * names a real, ACTIVE program, so a retired program cannot be assigned
+     * afresh even though existing rows keep pointing at it.
+     *
+     * @param array{program_id:string} $input
      */
-    private function emptyInput(): array
+    private function programIdFor(array $input): ?int
     {
-        return ['first_name' => '', 'last_name' => '', 'email' => '', 'role_id' => '', 'password' => ''];
+        return $input['program_id'] === '' ? null : (int) $input['program_id'];
     }
 
     /**
-     * @return array{first_name:string,last_name:string,email:string,role_id:string,password:string}
+     * @return array{first_name:string,last_name:string,email:string,role_id:string,program_id:string,password:string}
+     */
+    private function emptyInput(): array
+    {
+        return ['first_name' => '', 'last_name' => '', 'email' => '', 'role_id' => '', 'program_id' => '', 'password' => ''];
+    }
+
+    /**
+     * @return array{first_name:string,last_name:string,email:string,role_id:string,program_id:string,password:string}
      */
     private function inputFrom(array $post): array
     {
@@ -286,13 +324,14 @@ final class UserController extends Controller
             'last_name'  => trim((string) ($post['last_name'] ?? '')),
             'email'      => trim((string) ($post['email'] ?? '')),
             'role_id'    => trim((string) ($post['role_id'] ?? '')),
+            'program_id' => trim((string) ($post['program_id'] ?? '')),
             // Not trimmed: leading/trailing spaces in a password are legitimate characters.
             'password'   => (string) ($post['password'] ?? ''),
         ];
     }
 
     /**
-     * @param array{first_name:string,last_name:string,email:string,role_id:string,password:string} $input
+     * @param array{first_name:string,last_name:string,email:string,role_id:string,program_id:string,password:string} $input
      * @param list<array{role_id:int,role_name:string}> $roles
      * @return array<string,string> field => error message; empty when valid.
      */
@@ -334,6 +373,17 @@ final class UserController extends Controller
             $errors['role_id'] = 'Select a valid role.';
         }
 
+        // Program is OPTIONAL: the Secretary belongs to the office, not to a
+        // program, and a faculty account may legitimately be created before its
+        // program is known. When one IS given it is re-checked against the
+        // database rather than against the rendered <option> list, since the
+        // form could be stale or forged.
+        if ($input['program_id'] !== '') {
+            if (!ctype_digit($input['program_id']) || !Program::isActive((int) $input['program_id'])) {
+                $errors['program_id'] = 'Select a valid, active program.';
+            }
+        }
+
         $passwordLength = strlen($input['password']);
         if ($passwordRequired && $input['password'] === '') {
             $errors['password'] = 'Password is required.';
@@ -368,7 +418,7 @@ final class UserController extends Controller
      * change it to something else — a no-op role change is never blocked by
      * this method.
      *
-     * @param array{user_id:int,first_name:string,last_name:string,email:string,role_id:int,role_name:string,status:string} $target
+     * @param array{user_id:int,first_name:string,last_name:string,email:string,role_id:int,role_name:string,program_id:?int,status:string} $target
      */
     private function roleSafetyError(array $target, int $currentUserId, int $newRoleId, ?int $adminRoleId): ?string
     {
@@ -388,20 +438,21 @@ final class UserController extends Controller
     }
 
     /**
-     * @param array{user_id:int,first_name:string,last_name:string,email:string,role_id:int,role_name:string,status:string}|null $target
+     * @param array{user_id:int,first_name:string,last_name:string,email:string,role_id:int,role_name:string,program_id:?int,status:string}|null $target
      * @param list<array{role_id:int,role_name:string}> $roles
-     * @param array{first_name:string,last_name:string,email:string,role_id:string,password:string} $input
+     * @param array{first_name:string,last_name:string,email:string,role_id:string,program_id:string,password:string} $input
      * @param array<string,string> $errors
      */
     private function renderForm(?array $target, array $roles, array $input, array $errors): void
     {
         $this->view('admin/users/form', [
-            'appName' => $this->config()['app']['name'],
-            'target'  => $target,
-            'roles'   => $roles,
-            'input'   => $input,
-            'errors'  => $errors,
-            'csrf'    => Csrf::token(),
+            'appName'  => $this->config()['app']['name'],
+            'target'   => $target,
+            'roles'    => $roles,
+            'programs' => Program::allActive(),
+            'input'    => $input,
+            'errors'   => $errors,
+            'csrf'     => Csrf::token(),
         ]);
     }
 

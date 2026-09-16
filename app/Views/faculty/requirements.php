@@ -13,10 +13,10 @@ $periodLabel = $period !== null
     : null;
 
 $statusPillClass = [
-    'Pending'               => 'status-pill-pending',
-    'Submitted'             => 'status-pill-submitted',
-    'Approved'              => 'status-pill-approved',
-    'Returned-for-revision' => 'status-pill-returned',
+    'Pending'   => 'status-pill-pending',
+    'Submitted' => 'status-pill-submitted',
+    'Approved'  => 'status-pill-approved',
+    'Revised'   => 'status-pill-revised',
 ];
 ?>
 <section class="page-head">
@@ -61,7 +61,7 @@ $statusPillClass = [
                     $isOverdue = $row['deadline'] !== null
                         && $row['deadline'] < date('Y-m-d')
                         && $row['status'] !== 'Approved';
-                    $canUpload = in_array($row['status'], ['Pending', 'Returned-for-revision'], true);
+                    $canUpload = in_array($row['status'], ['Pending', 'Revised'], true);
                     $hasFile = $row['file_id'] !== null;
                     $pillClass = $statusPillClass[$row['status']] ?? 'status-pill-pending';
                     ?>
@@ -78,7 +78,7 @@ $statusPillClass = [
                         </td>
                         <td data-label="Status">
                             <span class="status-pill <?= $pillClass ?>"><?= htmlspecialchars($row['status']) ?></span>
-                            <?php if ($row['status'] === 'Returned-for-revision' && $row['last_comment'] !== null && $row['last_comment'] !== ''): ?>
+                            <?php if ($row['status'] === 'Revised' && $row['last_comment'] !== null && $row['last_comment'] !== ''): ?>
                                 <p class="review-comment-note"><strong>Reviewer:</strong> <?= htmlspecialchars($row['last_comment']) ?></p>
                             <?php endif; ?>
                         </td>

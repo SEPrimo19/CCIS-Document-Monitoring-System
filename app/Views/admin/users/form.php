@@ -4,9 +4,10 @@
  * Password is required on create; blank on edit keeps the current hash.
  *
  * @var string $appName
- * @var array{user_id:int,first_name:string,last_name:string,email:string,role_id:int,role_name:string,status:string}|null $target
+ * @var array{user_id:int,first_name:string,last_name:string,email:string,role_id:int,role_name:string,program_id:?int,status:string}|null $target
  * @var list<array{role_id:int,role_name:string}> $roles
- * @var array{first_name:string,last_name:string,email:string,role_id:string,password:string} $input
+ * @var list<array{program_id:int,code:string,name:string}> $programs
+ * @var array{first_name:string,last_name:string,email:string,role_id:string,program_id:string,password:string} $input
  * @var array<string,string> $errors
  * @var string $csrf
  */
@@ -86,6 +87,29 @@ $action = $isEdit ? url('/admin/users/' . $target['user_id']) : url('/admin/user
             </select>
             <?php if (!empty($errors['role_id'])): ?>
                 <p class="field-err"><?= htmlspecialchars($errors['role_id']) ?></p>
+            <?php endif; ?>
+        </div>
+
+        <?php // Program is set HERE, by the Secretary, and is deliberately absent ?>
+        <?php // from /profile: requirement audiences can target a program (FR-35), ?>
+        <?php // so a self-editable program field would let a faculty member move ?>
+        <?php // themselves out of a requirement aimed at theirs. ?>
+        <div class="field">
+            <label for="program_id">Program</label>
+            <select id="program_id" name="program_id">
+                <option value="">— None —</option>
+                <?php foreach ($programs as $program): ?>
+                    <option value="<?= (int) $program['program_id'] ?>" <?= (string) $program['program_id'] === $input['program_id'] ? 'selected' : '' ?>>
+                        <?= htmlspecialchars($program['code'] . ' — ' . $program['name']) ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+            <p class="field-help">
+                Determines which program-targeted requirements this account receives (FR-35, FR-36).
+                Leave as &ldquo;None&rdquo; for Secretary accounts.
+            </p>
+            <?php if (!empty($errors['program_id'])): ?>
+                <p class="field-err"><?= htmlspecialchars($errors['program_id']) ?></p>
             <?php endif; ?>
         </div>
 

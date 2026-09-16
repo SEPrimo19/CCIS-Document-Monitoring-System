@@ -75,7 +75,7 @@ ccis-dms/
 ├─ storage/
 │  └─ uploads/        # uploaded documents — OUTSIDE the web root, git-ignored;
 │                     # served only through the authenticated download route
-├─ scripts/           # db_setup.php, migrate.php, smoke.php
+├─ scripts/           # db_setup.php, migrate.php, migrate_batch_a.php, smoke.php
 └─ .htaccess          # deny-all safety net if DocumentRoot is mis-set
 ```
 
@@ -110,6 +110,11 @@ ccis-dms/
    submissions, notifications, and audit-log entries. It refuses to run unless
    `APP_ENV=development`; on any other environment (including an unset `APP_ENV`, which
    defaults to production) it exits with an error unless you pass `--force`.
+
+   On an **existing** database with data you want to keep, run
+   `php scripts/migrate_batch_a.php` instead. It applies the FR-35/FR-36 schema
+   changes and the `Returned-for-revision` -> `Revised` status rename
+   incrementally, with `ALTER`/`UPDATE` only, and is safe to run twice.
 4. Run it — simplest is PHP's built-in server:
    ```
    php -S localhost:8000 -t public

@@ -9,9 +9,15 @@ use PDO;
 
 /**
  * users table access. Read-only finders needed by Auth/Guard sit alongside the
- * Admin user-management CRUD (create/edit/deactivate/reactivate, role
- * assignment — FR-26). Deactivation is a soft-delete via status, never a row
- * delete, since audit_log and submissions reference user_id.
+ * Admin user-management CRUD (create/edit/deactivate/reactivate, role and
+ * program assignment — FR-26, FR-36). Deactivation is a soft-delete via
+ * status, never a row delete, since audit_log and submissions reference
+ * user_id.
+ *
+ * Note the split between updateProfile() (Secretary-side; sets role_id and
+ * program_id) and updateOwnProfile() (self-service; sets neither). Both
+ * columns decide what the system expects OF a user — their privileges and,
+ * since FR-35, which requirements target them — so neither is self-editable.
  */
 final class User
 {
@@ -21,14 +27,16 @@ final class User
      * user-management list. Active accounts sort first, then alphabetically
      * by name.
      *
-     * @return list<array{user_id:int,first_name:string,last_name:string,email:string,role_id:int,role_name:string,status:string,created_at:string}>
+     * @return list<array{user_id:int,first_name:string,last_name:string,email:string,role_id:int,role_name:string,program_code:?string,status:string,created_at:string}>
      */
     public static function all(): array
     {
         $stmt = self::pdo()->query(
-            "SELECT u.user_id, u.first_name, u.last_name, u.email, u.role_id, r.role_name, u.status, u.created_at
+            "SELECT u.user_id, u.first_name, u.last_name, u.email, u.role_id, r.role_name,
+                    p.code AS program_code, u.status, u.created_at
              FROM users u
              INNER JOIN roles r ON r.role_id = u.role_id
+             LEFT JOIN programs p ON p.program_id = u.program_id
              ORDER BY (u.status = 'active') DESC, u.last_name ASC, u.first_name ASC"
         );
 
@@ -38,12 +46,12 @@ final class User
     /**
      * One user, with role_id/role_name, for the edit form.
      *
-     * @return array{user_id:int,first_name:string,last_name:string,email:string,role_id:int,role_name:string,status:string}|null
+     * @return array{user_id:int,first_name:string,last_name:string,email:string,role_id:int,role_name:string,program_id:?int,status:string}|null
      */
     public static function find(int $id): ?array
     {
         $stmt = self::pdo()->prepare(
-            'SELECT u.user_id, u.first_name, u.last_name, u.email, u.role_id, r.role_name, u.status
+            'SELECT u.user_id, u.first_name, u.last_name, u.email, u.role_id, r.role_name, u.program_id, u.status
              FROM users u
              INNER JOIN roles r ON r.role_id = u.role_id
              WHERE u.user_id = :id
@@ -61,11 +69,11 @@ final class User
      * hashing the password (password_hash(..., PASSWORD_BCRYPT)) — this
      * method never receives or stores a plaintext password.
      */
-    public static function create(string $firstName, string $lastName, string $email, int $roleId, string $passwordHash): int
+    public static function create(string $firstName, string $lastName, string $email, int $roleId, string $passwordHash, ?int $programId): int
     {
         $stmt = self::pdo()->prepare(
-            "INSERT INTO users (role_id, first_name, last_name, email, password_hash, status)
-             VALUES (:role_id, :first_name, :last_name, :email, :password_hash, 'active')"
+            "INSERT INTO users (role_id, first_name, last_name, email, password_hash, program_id, status)
+             VALUES (:role_id, :first_name, :last_name, :email, :password_hash, :program_id, 'active')"
         );
         $stmt->execute([
             ':role_id'       => $roleId,
@@ -73,21 +81,28 @@ final class User
             ':last_name'     => $lastName,
             ':email'         => $email,
             ':password_hash' => $passwordHash,
+            ':program_id'    => $programId,
         ]);
 
         return (int) self::pdo()->lastInsertId();
     }
 
     /**
-     * Update a user's profile fields (name, email, role). Password changes go
-     * through updatePasswordHash() instead, since edit leaves the password
-     * untouched unless the admin supplies a new one.
+     * Update a user's profile fields (name, email, role, program). Password
+     * changes go through updatePasswordHash() instead, since edit leaves the
+     * password untouched unless the admin supplies a new one.
+     *
+     * program_id lives here and deliberately NOT in updateOwnProfile():
+     * requirement audiences key off it (FR-35), so only the Secretary may set
+     * it — a faculty member who could edit their own program could edit their
+     * way out of a requirement targeted at it.
      */
-    public static function updateProfile(int $id, string $firstName, string $lastName, string $email, int $roleId): void
+    public static function updateProfile(int $id, string $firstName, string $lastName, string $email, int $roleId, ?int $programId): void
     {
         $stmt = self::pdo()->prepare(
             'UPDATE users
-             SET first_name = :first_name, last_name = :last_name, email = :email, role_id = :role_id
+             SET first_name = :first_name, last_name = :last_name, email = :email,
+                 role_id = :role_id, program_id = :program_id
              WHERE user_id = :id'
         );
         $stmt->execute([
@@ -95,6 +110,7 @@ final class User
             ':last_name'  => $lastName,
             ':email'      => $email,
             ':role_id'    => $roleId,
+            ':program_id' => $programId,
             ':id'         => $id,
         ]);
     }
@@ -198,10 +214,10 @@ final class User
      * leaves open. Returns false only when a demotion was refused for that
      * reason; every other update returns true.
      */
-    public static function updateProfileGuardingLastAdmin(int $id, string $firstName, string $lastName, string $email, int $roleId, bool $guardLastAdmin): bool
+    public static function updateProfileGuardingLastAdmin(int $id, string $firstName, string $lastName, string $email, int $roleId, ?int $programId, bool $guardLastAdmin): bool
     {
         if (!$guardLastAdmin) {
-            self::updateProfile($id, $firstName, $lastName, $email, $roleId);
+            self::updateProfile($id, $firstName, $lastName, $email, $roleId, $programId);
 
             return true;
         }
@@ -225,7 +241,8 @@ final class User
 
             $stmt = $pdo->prepare(
                 'UPDATE users
-                 SET first_name = :first_name, last_name = :last_name, email = :email, role_id = :role_id
+                 SET first_name = :first_name, last_name = :last_name, email = :email,
+                     role_id = :role_id, program_id = :program_id
                  WHERE user_id = :id'
             );
             $stmt->execute([
@@ -233,6 +250,7 @@ final class User
                 ':last_name'  => $lastName,
                 ':email'      => $email,
                 ':role_id'    => $roleId,
+                ':program_id' => $programId,
                 ':id'         => $id,
             ]);
 
@@ -295,15 +313,21 @@ final class User
      * screens and deliberately never selects password_hash. Only the
      * self-service password change needs it, so only this method exposes it.
      *
-     * @return array{user_id:int,employee_no:?string,first_name:string,last_name:string,email:string,program_dept:?string,password_hash:string,role_name:string}|null
+     * program_code/program_name are joined in for DISPLAY ONLY — the profile
+     * screen shows the user which program the Secretary assigned them, but the
+     * form has no control for it (FR-36); see updateOwnProfile().
+     *
+     * @return array{user_id:int,employee_no:?string,first_name:string,last_name:string,email:string,program_code:?string,program_name:?string,password_hash:string,role_name:string}|null
      */
     public static function profileFor(int $userId): ?array
     {
         $stmt = self::pdo()->prepare(
             'SELECT u.user_id, u.employee_no, u.first_name, u.last_name, u.email,
-                    u.program_dept, u.password_hash, r.role_name
+                    p.code AS program_code, p.name AS program_name,
+                    u.password_hash, r.role_name
              FROM users u
              INNER JOIN roles r ON r.role_id = u.role_id
+             LEFT JOIN programs p ON p.program_id = u.program_id
              WHERE u.user_id = :id
              LIMIT 1'
         );
@@ -316,25 +340,30 @@ final class User
     /**
      * Update the fields a user may change about THEMSELVES (FR-5).
      *
-     * Note what is absent: role_id and status. Self-service editing must never
-     * be a privilege-escalation path, so those columns are simply not in this
-     * statement — a forged role_id in the request has nothing to bind to,
-     * rather than relying on the controller remembering to strip it.
+     * Note what is absent: role_id, status — and, since FR-35, program_id.
+     * Self-service editing must never be a privilege-escalation path, so those
+     * columns are simply not in this statement — a forged role_id or
+     * program_id in the request has nothing to bind to, rather than relying on
+     * the controller remembering to strip it.
+     *
+     * program_id left this statement when requirement audiences started keying
+     * off it: a faculty member who could set their own program could move
+     * themselves out of a requirement targeted at that program, which is an
+     * obligation-evasion path, not a profile preference. It is assigned by the
+     * Secretary on the user form instead (see updateProfile()).
      */
-    public static function updateOwnProfile(int $id, string $firstName, string $lastName, string $email, ?string $programDept): void
+    public static function updateOwnProfile(int $id, string $firstName, string $lastName, string $email): void
     {
         $stmt = self::pdo()->prepare(
             'UPDATE users
-                SET first_name = :first_name, last_name = :last_name,
-                    email = :email, program_dept = :program_dept
+                SET first_name = :first_name, last_name = :last_name, email = :email
               WHERE user_id = :id'
         );
         $stmt->execute([
-            ':first_name'   => $firstName,
-            ':last_name'    => $lastName,
-            ':email'        => $email,
-            ':program_dept' => $programDept,
-            ':id'           => $id,
+            ':first_name' => $firstName,
+            ':last_name'  => $lastName,
+            ':email'      => $email,
+            ':id'         => $id,
         ]);
     }
 
@@ -375,6 +404,85 @@ final class User
         );
 
         return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+    }
+
+    /**
+     * user_id list of every active Faculty account assigned to one program —
+     * the audience of a requirement published with applies_to='program'
+     * (FR-35). Role and status are re-checked here, in SQL, rather than
+     * trusted from the form.
+     *
+     * @return list<int>
+     */
+    public static function activeFacultyIdsForProgram(int $programId): array
+    {
+        $stmt = self::pdo()->prepare(
+            "SELECT u.user_id
+             FROM users u
+             INNER JOIN roles r ON r.role_id = u.role_id
+             WHERE u.status = 'active' AND r.role_name = 'Faculty' AND u.program_id = :program_id"
+        );
+        $stmt->execute([':program_id' => $programId]);
+
+        return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+    }
+
+    /**
+     * Narrow a list of posted user ids down to the ones that really are active
+     * Faculty accounts — the audience of a requirement published with
+     * applies_to='individual' (FR-35).
+     *
+     * The posted ids are NEVER trusted: this re-derives the answer from the
+     * users/roles tables, so a hand-crafted POST naming the Secretary, an
+     * inactive account, or an id that does not exist simply loses those ids
+     * here rather than publishing a submission row against them. The ids are
+     * cast to int and bound positionally (the IN list is built from
+     * placeholders, never from the values) so the widened list is still a
+     * prepared statement.
+     *
+     * @param list<int> $userIds
+     * @return list<int> the subset that is active + Faculty, de-duplicated
+     */
+    public static function filterActiveFacultyIds(array $userIds): array
+    {
+        $ids = array_values(array_unique(array_map('intval', $userIds)));
+        if ($ids === []) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = self::pdo()->prepare(
+            "SELECT u.user_id
+             FROM users u
+             INNER JOIN roles r ON r.role_id = u.role_id
+             WHERE u.status = 'active' AND r.role_name = 'Faculty'
+               AND u.user_id IN ({$placeholders})"
+        );
+        $stmt->execute($ids);
+
+        return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+    }
+
+    /**
+     * {user_id, first_name, last_name, program_code} for every active Faculty
+     * account — the checkbox list behind the requirement form's "Specific
+     * faculty" audience (FR-35). The program code is shown alongside the name
+     * so the Secretary can tell two similarly-named staff apart.
+     *
+     * @return list<array{user_id:int,first_name:string,last_name:string,program_code:?string}>
+     */
+    public static function activeFacultyForPicker(): array
+    {
+        $stmt = self::pdo()->query(
+            "SELECT u.user_id, u.first_name, u.last_name, p.code AS program_code
+             FROM users u
+             INNER JOIN roles r ON r.role_id = u.role_id
+             LEFT JOIN programs p ON p.program_id = u.program_id
+             WHERE u.status = 'active' AND r.role_name = 'Faculty'
+             ORDER BY u.last_name ASC, u.first_name ASC"
+        );
+
+        return $stmt->fetchAll();
     }
 
     /**

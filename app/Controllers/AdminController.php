@@ -36,11 +36,11 @@ final class AdminController extends Controller
     private const CSV_REPORTS = [
         'faculty' => [
             'slug'   => 'faculty-compliance',
-            'header' => ['Faculty', 'Total', 'Pending', 'Submitted', 'Approved', 'Returned', 'Compliance %'],
+            'header' => ['Faculty', 'Total', 'Pending', 'Submitted', 'Approved', 'Revised', 'Compliance %'],
         ],
         'doctype' => [
             'slug'   => 'doctype-completion',
-            'header' => ['Document Type', 'Total', 'Pending', 'Submitted', 'Approved', 'Returned', 'Completion %'],
+            'header' => ['Document Type', 'Total', 'Pending', 'Submitted', 'Approved', 'Revised', 'Completion %'],
         ],
         'status' => [
             'slug'   => 'status-summary',
@@ -253,7 +253,7 @@ final class AdminController extends Controller
      * monitoring board's stat cards (FR-18): status counts, total
      * submissions, compliance rate, and overdue count.
      *
-     * @return array{statusCounts:array{Pending:int,Submitted:int,Approved:int,'Returned-for-revision':int},total:int,complianceRate:int,overdueCount:int}
+     * @return array{statusCounts:array{Pending:int,Submitted:int,Approved:int,Revised:int},total:int,complianceRate:int,overdueCount:int}
      */
     private function figuresForPeriod(int $periodId): array
     {
@@ -414,7 +414,7 @@ final class AdminController extends Controller
                         (int) $row['pending'],
                         (int) $row['submitted'],
                         (int) $row['approved'],
-                        (int) $row['returned'],
+                        (int) $row['revised'],
                         self::percentOf((int) $row['approved'], $total),
                     ];
                 },
@@ -433,7 +433,7 @@ final class AdminController extends Controller
                         (int) $row['pending'],
                         (int) $row['submitted'],
                         (int) $row['approved'],
-                        (int) $row['returned'],
+                        (int) $row['revised'],
                         self::percentOf((int) $row['approved'], $total),
                     ];
                 },

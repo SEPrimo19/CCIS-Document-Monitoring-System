@@ -133,7 +133,7 @@ final class Notification
      * faculty member still owes that falls due within the next $daysAhead
      * days (FR-21).
      *
-     * Only Pending and Returned-for-revision qualify: a Submitted item is out
+     * Only Pending and Revised qualify: a Submitted item is out
      * of the faculty member's hands, and an Approved one is finished — neither
      * is actionable, so reminding about them would be noise.
      *
@@ -163,7 +163,7 @@ final class Notification
                    AND DATE(n.created_at) = :today_dedup
              WHERE s.faculty_id = :faculty_id
                AND r.period_id = :period_id
-               AND s.status IN ('Pending', 'Returned-for-revision')
+               AND s.status IN ('Pending', 'Revised')
                AND r.deadline IS NOT NULL
                AND r.deadline >= :today
                AND r.deadline <= :horizon
@@ -214,7 +214,7 @@ final class Notification
                    AND DATE(n.created_at) = :today_dedup
              WHERE s.faculty_id = :faculty_id
                AND r.period_id = :period_id
-               AND s.status IN ('Pending', 'Returned-for-revision')
+               AND s.status IN ('Pending', 'Revised')
                AND r.deadline IS NOT NULL
                AND r.deadline < :today
                AND r.deadline >= :floor

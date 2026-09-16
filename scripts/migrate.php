@@ -55,7 +55,7 @@ try {
     echo "schema: tables created\n";
 
     run_sql_file($pdo, $dir . '/seed.sql');
-    echo "seed:   reference data inserted (roles, document types, academic period)\n";
+    echo "seed:   reference data inserted (roles, programs, document types, academic period)\n";
 
     // Default Secretary account (password hashed here, never stored in SQL).
     // Password comes from SECRETARY_PASSWORD (env/config); defaults to
@@ -64,18 +64,23 @@ try {
     $adminPass  = getenv('SECRETARY_PASSWORD') ?: 'Secretary@123';
     $roleId = (int) $pdo->query("SELECT role_id FROM roles WHERE role_name = 'Secretary'")->fetchColumn();
 
+    // program_id replaces the old free-text program_dept column (FR-36); the
+    // codes are seeded by database/seed.sql. The Secretary belongs to the
+    // office rather than to a program, so their program_id stays NULL.
+    $programIds = $pdo->query('SELECT code, program_id FROM programs')->fetchAll(PDO::FETCH_KEY_PAIR);
+
     $stmt = $pdo->prepare(
-        'INSERT INTO users (role_id, employee_no, first_name, last_name, email, password_hash, program_dept, status)
-         VALUES (:role, :emp, :fn, :ln, :em, :ph, :dept, \'active\')'
+        'INSERT INTO users (role_id, employee_no, first_name, last_name, email, password_hash, program_id, status)
+         VALUES (:role, :emp, :fn, :ln, :em, :ph, :program, \'active\')'
     );
     $stmt->execute([
-        ':role' => $roleId,
-        ':emp'  => 'SEC-001',
-        ':fn'   => 'College',
-        ':ln'   => 'Secretary',
-        ':em'   => $adminEmail,
-        ':ph'   => password_hash($adminPass, PASSWORD_BCRYPT),
-        ':dept' => 'CCIS',
+        ':role'    => $roleId,
+        ':emp'     => 'SEC-001',
+        ':fn'      => 'College',
+        ':ln'      => 'Secretary',
+        ':em'      => $adminEmail,
+        ':ph'      => password_hash($adminPass, PASSWORD_BCRYPT),
+        ':program' => null,
     ]);
     echo "secretary: created ({$adminEmail}) — password set from SECRETARY_PASSWORD env var (dev default: Secretary@123); change after first login\n";
 
@@ -89,15 +94,15 @@ try {
         ['FAC-002', 'Angelica', 'Reyes',  'faculty2@nwssu.edu.ph', 'BSIS'],
         ['FAC-003', 'Ramon', 'Villanueva', 'faculty3@nwssu.edu.ph', 'BSIT'],
     ];
-    foreach ($facultyAccounts as [$emp, $fn, $ln, $em, $dept]) {
+    foreach ($facultyAccounts as [$emp, $fn, $ln, $em, $programCode]) {
         $stmt->execute([
-            ':role' => $facultyRoleId,
-            ':emp'  => $emp,
-            ':fn'   => $fn,
-            ':ln'   => $ln,
-            ':em'   => $em,
-            ':ph'   => $facultyHash,
-            ':dept' => $dept,
+            ':role'    => $facultyRoleId,
+            ':emp'     => $emp,
+            ':fn'      => $fn,
+            ':ln'      => $ln,
+            ':em'      => $em,
+            ':ph'      => $facultyHash,
+            ':program' => isset($programIds[$programCode]) ? (int) $programIds[$programCode] : null,
         ]);
     }
     echo "faculty: created (faculty1@nwssu.edu.ph, faculty2@nwssu.edu.ph, faculty3@nwssu.edu.ph) — password set from FACULTY_PASSWORD env var (dev default: Faculty@123)\n";

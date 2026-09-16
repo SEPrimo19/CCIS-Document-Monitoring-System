@@ -3,7 +3,7 @@
  * @var string $appName
  * @var array{user_id:int,first_name:string,last_name:string,email:string,role_name:string} $user
  * @var array{period_id:int,school_year:string,semester:string,label:?string,start_date:?string,end_date:?string,is_active:int}|null $period
- * @var array{statusCounts:array{Pending:int,Submitted:int,Approved:int,'Returned-for-revision':int},total:int,complianceRate:int,overdueCount:int}|null $figures
+ * @var array{statusCounts:array{Pending:int,Submitted:int,Approved:int,Revised:int},total:int,complianceRate:int,overdueCount:int}|null $figures
  * @var int $awaitingCount submissions waiting on the Secretary's decision (FR-12)
  */
 require __DIR__ . '/../partials/header.php';
@@ -50,8 +50,8 @@ $periodLabel = $period !== null
         </article>
 
         <article class="card err">
-            <h2>Returned</h2>
-            <p class="status"><?= (int) $figures['statusCounts']['Returned-for-revision'] ?></p>
+            <h2>Revised</h2>
+            <p class="status"><?= (int) $figures['statusCounts']['Revised'] ?></p>
             <p class="detail">Sent back for revision.</p>
         </article>
 
@@ -72,10 +72,10 @@ $periodLabel = $period !== null
     $sc = $figures['statusCounts'];
     $barTotal = (int) $figures['total'];
     $segments = [
-        ['Pending',   (int) $sc['Pending'],               'seg-pending'],
-        ['Submitted', (int) $sc['Submitted'],             'seg-submitted'],
-        ['Approved',  (int) $sc['Approved'],              'seg-approved'],
-        ['Returned',  (int) $sc['Returned-for-revision'], 'seg-returned'],
+        ['Pending',   (int) $sc['Pending'],   'seg-pending'],
+        ['Submitted', (int) $sc['Submitted'], 'seg-submitted'],
+        ['Approved',  (int) $sc['Approved'],  'seg-approved'],
+        ['Revised',   (int) $sc['Revised'],   'seg-revised'],
     ];
     ?>
     <?php if ($barTotal > 0): ?>
@@ -117,7 +117,7 @@ $periodLabel = $period !== null
 
     <article class="card">
         <h2>Faculty Compliance</h2>
-        <p class="detail">Per-faculty summary of submitted, approved, returned, and pending requirements (FR-16).</p>
+        <p class="detail">Per-faculty summary of submitted, approved, revised, and pending requirements (FR-16).</p>
         <p class="status muted"><a href="<?= url('/reviewer/compliance') ?>" class="card-link">View faculty compliance &rarr;</a></p>
     </article>
 

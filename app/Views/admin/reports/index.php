@@ -3,9 +3,9 @@
  * @var string $appName
  * @var list<array{period_id:int,school_year:string,semester:string,label:?string,is_active:int}> $periods
  * @var array{period_id:int,school_year:string,semester:string,label:?string,is_active:int}|null $period
- * @var array{statusCounts:array{Pending:int,Submitted:int,Approved:int,'Returned-for-revision':int},total:int,complianceRate:int,overdueCount:int}|null $figures
- * @var list<array{user_id:int,faculty_name:string,total:int,pending:int,submitted:int,approved:int,returned:int}> $facultyCompliance
- * @var list<array{doc_type_id:int,doc_type_name:string,total:int,pending:int,submitted:int,approved:int,returned:int}> $docTypeCompletion
+ * @var array{statusCounts:array{Pending:int,Submitted:int,Approved:int,Revised:int},total:int,complianceRate:int,overdueCount:int}|null $figures
+ * @var list<array{user_id:int,faculty_name:string,total:int,pending:int,submitted:int,approved:int,revised:int}> $facultyCompliance
+ * @var list<array{doc_type_id:int,doc_type_name:string,total:int,pending:int,submitted:int,approved:int,revised:int}> $docTypeCompletion
  */
 require __DIR__ . '/../../partials/header.php';
 
@@ -85,8 +85,8 @@ $csvUrl = static function (string $report, int $periodId): string {
         </article>
 
         <article class="card err">
-            <h2>Returned</h2>
-            <p class="status"><?= (int) $figures['statusCounts']['Returned-for-revision'] ?></p>
+            <h2>Revised</h2>
+            <p class="status"><?= (int) $figures['statusCounts']['Revised'] ?></p>
         </article>
 
         <article class="card">
@@ -112,7 +112,7 @@ $csvUrl = static function (string $report, int $periodId): string {
                         <th>Pending</th>
                         <th>Submitted</th>
                         <th>Approved</th>
-                        <th>Returned</th>
+                        <th>Revised</th>
                         <th>Compliance %</th>
                     </tr>
                 </thead>
@@ -124,7 +124,7 @@ $csvUrl = static function (string $report, int $periodId): string {
                             <td><?= (int) $row['pending'] ?></td>
                             <td><?= (int) $row['submitted'] ?></td>
                             <td><?= (int) $row['approved'] ?></td>
-                            <td><?= (int) $row['returned'] ?></td>
+                            <td><?= (int) $row['revised'] ?></td>
                             <td><?= $percentOf((int) $row['approved'], (int) $row['total']) ?>%</td>
                         </tr>
                     <?php endforeach; ?>
@@ -149,7 +149,7 @@ $csvUrl = static function (string $report, int $periodId): string {
                         <th>Pending</th>
                         <th>Submitted</th>
                         <th>Approved</th>
-                        <th>Returned</th>
+                        <th>Revised</th>
                         <th>Completion %</th>
                     </tr>
                 </thead>
@@ -161,7 +161,7 @@ $csvUrl = static function (string $report, int $periodId): string {
                             <td><?= (int) $row['pending'] ?></td>
                             <td><?= (int) $row['submitted'] ?></td>
                             <td><?= (int) $row['approved'] ?></td>
-                            <td><?= (int) $row['returned'] ?></td>
+                            <td><?= (int) $row['revised'] ?></td>
                             <td><?= $percentOf((int) $row['approved'], (int) $row['total']) ?>%</td>
                         </tr>
                     <?php endforeach; ?>

@@ -2,7 +2,7 @@
 /**
  * @var string $appName
  * @var array{period_id:int,school_year:string,semester:string,label:?string,start_date:?string,end_date:?string,is_active:int}|null $period
- * @var array{statusCounts:array{Pending:int,Submitted:int,Approved:int,'Returned-for-revision':int},total:int,complianceRate:int,overdueCount:int}|null $figures
+ * @var array{statusCounts:array{Pending:int,Submitted:int,Approved:int,Revised:int},total:int,complianceRate:int,overdueCount:int}|null $figures
  * @var list<array{requirement_id:int,title:string,description:?string,deadline:?string,created_at:string,doc_type_name:string,total_count:int,submitted_count:int}> $requirements
  * @var list<array{user_id:int,first_name:string,last_name:string}> $faculty
  * @var array<int,array<int,string>> $grid
@@ -18,10 +18,10 @@ $periodLabel = $period !== null
     : null;
 
 $statusPillClass = [
-    'Pending'               => 'status-pill-pending',
-    'Submitted'             => 'status-pill-submitted',
-    'Approved'              => 'status-pill-approved',
-    'Returned-for-revision' => 'status-pill-returned',
+    'Pending'   => 'status-pill-pending',
+    'Submitted' => 'status-pill-submitted',
+    'Approved'  => 'status-pill-approved',
+    'Revised'   => 'status-pill-revised',
 ];
 
 $today = date('Y-m-d');
@@ -65,8 +65,8 @@ $today = date('Y-m-d');
         </article>
 
         <article class="card err">
-            <h2>Returned</h2>
-            <p class="status"><?= (int) $figures['statusCounts']['Returned-for-revision'] ?></p>
+            <h2>Revised</h2>
+            <p class="status"><?= (int) $figures['statusCounts']['Revised'] ?></p>
             <p class="detail">Sent back for revision.</p>
         </article>
 

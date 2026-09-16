@@ -3,7 +3,7 @@
  * @var string $appName
  * @var array{user_id:int,first_name:string,last_name:string,email:string,role_name:string} $user
  * @var array{period_id:int,school_year:string,semester:string,label:?string,start_date:?string,end_date:?string,is_active:int}|null $period
- * @var array{Pending:int,Submitted:int,Approved:int,'Returned-for-revision':int} $counts
+ * @var array{Pending:int,Submitted:int,Approved:int,Revised:int} $counts
  */
 require __DIR__ . '/../partials/header.php';
 
@@ -45,8 +45,8 @@ $periodLabel = $period !== null
         </article>
 
         <article class="card err">
-            <h2>Returned</h2>
-            <p class="status"><?= (int) $counts['Returned-for-revision'] ?></p>
+            <h2>Revised</h2>
+            <p class="status"><?= (int) $counts['Revised'] ?></p>
             <p class="detail">Needs revision and resubmission.</p>
         </article>
     </section>
@@ -55,7 +55,7 @@ $periodLabel = $period !== null
 <section class="cards">
     <article class="card">
         <h2>My Requirements</h2>
-        <p class="detail">Checklist of submitted vs. pending requirements for the active period, with deadlines, upload, status, and resubmission of returned items (FR-6 to FR-10).</p>
+        <p class="detail">Checklist of submitted vs. pending requirements for the active period, with deadlines, upload, status, and resubmission of revised items (FR-6 to FR-10).</p>
         <p class="status muted"><a href="<?= url('/faculty/requirements') ?>" class="card-link">View checklist &rarr;</a></p>
     </article>
 

@@ -63,7 +63,7 @@ final class FacultyController extends Controller
 
         $counts = $period !== null
             ? Submission::statusCountsForFaculty($facultyId, (int) $period['period_id'])
-            : ['Pending' => 0, 'Submitted' => 0, 'Approved' => 0, 'Returned-for-revision' => 0];
+            : ['Pending' => 0, 'Submitted' => 0, 'Approved' => 0, 'Revised' => 0];
 
         $this->view('dashboard/faculty', [
             'appName' => $this->config()['app']['name'],
@@ -143,7 +143,7 @@ final class FacultyController extends Controller
             return;
         }
 
-        if (!in_array($submission['status'], ['Pending', 'Returned-for-revision'], true)) {
+        if (!in_array($submission['status'], ['Pending', 'Revised'], true)) {
             $this->flash('err', "This requirement can't be uploaded to right now.");
             $this->redirectToRequirements();
             return;
@@ -174,7 +174,7 @@ final class FacultyController extends Controller
         }
 
         $relativePath = 'storage/uploads/' . $storedName;
-        $wasReturned = $submission['status'] === 'Returned-for-revision';
+        $wasRevised = $submission['status'] === 'Revised';
         $ip = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
 
         $pdo = Database::connection($this->config()['db']);
@@ -228,8 +228,8 @@ final class FacultyController extends Controller
                     $reviewerIds,
                     $submissionId,
                     'status_change',
-                    $wasReturned ? 'Document resubmitted for review' : 'New document awaiting review',
-                    mb_substr('"' . $submission['title'] . '" was ' . ($wasReturned ? 'resubmitted' : 'submitted')
+                    $wasRevised ? 'Document resubmitted for review' : 'New document awaiting review',
+                    mb_substr('"' . $submission['title'] . '" was ' . ($wasRevised ? 'resubmitted' : 'submitted')
                         . ' and is waiting in the review queue.', 0, 255)
                 );
             }
@@ -243,7 +243,7 @@ final class FacultyController extends Controller
         try {
             AuditLog::record(
                 $facultyId,
-                $wasReturned ? 'resubmit' : 'submit',
+                $wasRevised ? 'resubmit' : 'submit',
                 'submission',
                 $submissionId,
                 'v' . $newVersion . ' ' . $upload['originalName'],

@@ -13,6 +13,15 @@ INSERT INTO roles (role_name, description) VALUES
     ('Secretary', 'College Secretary. Manages users, document types, requirements and periods, monitors compliance, verifies (approves or returns) submitted documents, and generates reports.'),
     ('Faculty',   'Uploads required documents and tracks their submission status.');
 
+-- The college's academic programs (FR-36). Reference data the Secretary
+-- maintains; a faculty account is assigned one of these, and a requirement can
+-- be targeted at one (FR-35). The Secretary's own account has no program.
+INSERT INTO programs (code, name, is_active) VALUES
+    ('BSIT', 'Bachelor of Science in Information Technology', 1),
+    ('BSIS', 'Bachelor of Science in Information Systems',    1),
+    ('BSCS', 'Bachelor of Science in Computer Science',       1),
+    ('EMC',  'Entertainment and Multimedia Computing',        1);
+
 INSERT INTO document_types (name, description, is_active) VALUES
     ('Teaching Load',                 'Faculty teaching load per semester.',            1),
     ('Syllabus',                      'Course syllabus.',                               1),

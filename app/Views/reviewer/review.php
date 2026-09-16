@@ -11,10 +11,10 @@
 require __DIR__ . '/../partials/header.php';
 
 $statusPillClass = [
-    'Pending'               => 'status-pill-pending',
-    'Submitted'             => 'status-pill-submitted',
-    'Approved'              => 'status-pill-approved',
-    'Returned-for-revision' => 'status-pill-returned',
+    'Pending'   => 'status-pill-pending',
+    'Submitted' => 'status-pill-submitted',
+    'Approved'  => 'status-pill-approved',
+    'Revised'   => 'status-pill-revised',
 ];
 $pillClass = $statusPillClass[$submission['status']] ?? 'status-pill-pending';
 $canDecide = $submission['status'] === 'Submitted';
@@ -53,7 +53,7 @@ $canDecide = $submission['status'] === 'Submitted';
         <h2>Review history</h2>
         <ul class="history-list">
             <?php foreach ($history as $entry): ?>
-                <?php $entryPill = $entry['decision'] === 'Approved' ? 'status-pill-approved' : 'status-pill-returned'; ?>
+                <?php $entryPill = $entry['decision'] === 'Approved' ? 'status-pill-approved' : 'status-pill-revised'; ?>
                 <li>
                     <span class="status-pill <?= $entryPill ?>"><?= htmlspecialchars($entry['decision']) ?></span>
                     <span class="history-meta">
@@ -82,7 +82,7 @@ $canDecide = $submission['status'] === 'Submitted';
                     Approve
                 </label>
                 <label class="radio-label">
-                    <input type="radio" name="decision" value="Returned-for-revision" <?= $decision === 'Returned-for-revision' ? 'checked' : '' ?>>
+                    <input type="radio" name="decision" value="Revised" <?= $decision === 'Revised' ? 'checked' : '' ?>>
                     Return for revision
                 </label>
                 <?php if (!empty($errors['decision'])): ?>

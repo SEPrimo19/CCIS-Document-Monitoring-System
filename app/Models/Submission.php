@@ -71,31 +71,64 @@ final class Submission
 
     /**
      * Self-healing backfill for a faculty member who was hired (or reactivated)
-     * AFTER a requirement was published: publishing snapshots
-     * User::activeFacultyIds() at that moment, so a later hire has no
-     * submission row and the requirement is invisible to them. Called at the
-     * start of FacultyController::requirements() so a new hire's checklist
-     * fills in on first visit. INSERT IGNORE + NOT EXISTS make this safe to
-     * call every time (idempotent) — it only ever adds rows for requirements
-     * this faculty member doesn't already have one for. Returns the number of
-     * rows actually inserted.
+     * AFTER a requirement was published: publishing snapshots the audience at
+     * that moment, so a later hire has no submission row and the requirement is
+     * invisible to them. Called at the start of
+     * FacultyController::requirements() so a new hire's checklist fills in on
+     * first visit. INSERT IGNORE + NOT EXISTS make this safe to call every time
+     * (idempotent) — it only ever adds rows for requirements this faculty
+     * member doesn't already have one for. Returns the number of rows actually
+     * inserted.
+     *
+     * AUDIENCE-AWARE (FR-35): the WHERE clause re-evaluates each requirement's
+     * audience against THIS faculty member, so a program- or individually-
+     * targeted requirement is not silently handed to everyone who visits the
+     * page. The three arms mirror requirements.applies_to exactly:
+     *   'all_faculty' — always included
+     *   'program'     — only when the requirement's target program is this
+     *                   faculty member's program (a NULL program_id matches
+     *                   nothing, which is correct: an unassigned account is
+     *                   not in any program)
+     *   'individual'  — only when a requirement_targets row names them
+     * Resolved in SQL rather than in PHP so the set can never drift from what
+     * the publish step computed.
+     *
+     * DELIBERATE: this only ever ADDS. Changing a faculty member's program does
+     * not retroactively rewrite already-published submissions — rows for their
+     * old program stay, and rows for the new one appear on their next visit.
+     * Deleting the old rows would destroy uploaded work and its review history
+     * to tidy up a bookkeeping change, which is far worse than a stale row the
+     * Secretary can see and reason about on the monitoring board.
      */
     public static function backfillForFaculty(int $facultyId, int $periodId): int
     {
         $stmt = self::pdo()->prepare(
             "INSERT IGNORE INTO submissions (requirement_id, faculty_id, status, current_version, updated_at)
-             SELECT r.requirement_id, :faculty_id, 'Pending', 0, NOW()
+             SELECT r.requirement_id, u.user_id, 'Pending', 0, NOW()
              FROM requirements r
-             WHERE r.period_id = :period_id
+             CROSS JOIN users u
+             WHERE u.user_id = :faculty_id
+               AND r.period_id = :period_id
+               AND (
+                    r.applies_to = 'all_faculty'
+                    OR (r.applies_to = 'program'
+                        AND r.target_program_id IS NOT NULL
+                        AND r.target_program_id = u.program_id)
+                    OR (r.applies_to = 'individual'
+                        AND EXISTS (
+                            SELECT 1 FROM requirement_targets rt
+                            WHERE rt.requirement_id = r.requirement_id
+                              AND rt.faculty_id = u.user_id
+                        ))
+               )
                AND NOT EXISTS (
                    SELECT 1 FROM submissions s
-                   WHERE s.requirement_id = r.requirement_id AND s.faculty_id = :faculty_id2
+                   WHERE s.requirement_id = r.requirement_id AND s.faculty_id = u.user_id
                )"
         );
         $stmt->execute([
-            ':faculty_id'  => $facultyId,
-            ':period_id'   => $periodId,
-            ':faculty_id2' => $facultyId,
+            ':faculty_id' => $facultyId,
+            ':period_id'  => $periodId,
         ]);
 
         return $stmt->rowCount();
@@ -107,8 +140,7 @@ final class Submission
      * "My Requirements" checklist (FR-6). `last_comment` is the most recent
      * reviewer comment on record for the submission (via a correlated
      * subquery on reviews) — only meaningful/shown by the view when status is
-     * Returned-for-revision (FR-15), so faculty know what to fix before
-     * resubmitting.
+     * Revised (FR-15), so faculty know what to fix before resubmitting.
      *
      * @return list<array{submission_id:int,status:string,current_version:int,updated_at:string,title:string,deadline:?string,doc_type_name:string,file_id:?int,file_name:?string,last_comment:?string}>
      */
@@ -299,7 +331,7 @@ final class Submission
         $stmt = self::pdo()->prepare(
             "UPDATE submissions
              SET status = 'Submitted', current_version = :version, submitted_at = NOW()
-             WHERE submission_id = :id AND status IN ('Pending', 'Returned-for-revision')"
+             WHERE submission_id = :id AND status IN ('Pending', 'Revised')"
         );
         $stmt->execute([
             ':version' => $newVersion,
@@ -314,15 +346,15 @@ final class Submission
      * requirements, for the faculty dashboard summary. Every status key is
      * always present, defaulting to 0.
      *
-     * @return array{Pending:int,Submitted:int,Approved:int,'Returned-for-revision':int}
+     * @return array{Pending:int,Submitted:int,Approved:int,Revised:int}
      */
     public static function statusCountsForFaculty(int $facultyId, int $periodId): array
     {
         $counts = [
-            'Pending'               => 0,
-            'Submitted'             => 0,
-            'Approved'              => 0,
-            'Returned-for-revision' => 0,
+            'Pending'   => 0,
+            'Submitted' => 0,
+            'Approved'  => 0,
+            'Revised'   => 0,
         ];
 
         $stmt = self::pdo()->prepare(
@@ -349,15 +381,15 @@ final class Submission
      * admin monitoring board's figures (FR-18). Every status key is always
      * present, defaulting to 0.
      *
-     * @return array{Pending:int,Submitted:int,Approved:int,'Returned-for-revision':int}
+     * @return array{Pending:int,Submitted:int,Approved:int,Revised:int}
      */
     public static function statusCountsForPeriod(int $periodId): array
     {
         $counts = [
-            'Pending'               => 0,
-            'Submitted'             => 0,
-            'Approved'              => 0,
-            'Returned-for-revision' => 0,
+            'Pending'   => 0,
+            'Submitted' => 0,
+            'Approved'  => 0,
+            'Revised'   => 0,
         ];
 
         $stmt = self::pdo()->prepare(
@@ -497,7 +529,7 @@ final class Submission
      * as all-zero rows. The controller/view computes the compliance
      * percentage (Approved / total).
      *
-     * @return list<array{user_id:int,faculty_name:string,total:int,pending:int,submitted:int,approved:int,returned:int}>
+     * @return list<array{user_id:int,faculty_name:string,total:int,pending:int,submitted:int,approved:int,revised:int}>
      */
     public static function complianceByFaculty(int $periodId): array
     {
@@ -508,7 +540,7 @@ final class Submission
                     SUM(CASE WHEN s.status = 'Pending' THEN 1 ELSE 0 END) AS pending,
                     SUM(CASE WHEN s.status = 'Submitted' THEN 1 ELSE 0 END) AS submitted,
                     SUM(CASE WHEN s.status = 'Approved' THEN 1 ELSE 0 END) AS approved,
-                    SUM(CASE WHEN s.status = 'Returned-for-revision' THEN 1 ELSE 0 END) AS returned
+                    SUM(CASE WHEN s.status = 'Revised' THEN 1 ELSE 0 END) AS revised
              FROM submissions s
              INNER JOIN requirements r ON r.requirement_id = s.requirement_id
              INNER JOIN users u ON u.user_id = s.faculty_id
@@ -529,7 +561,7 @@ final class Submission
      * period are omitted. The controller/view computes the completion
      * percentage (Approved / total).
      *
-     * @return list<array{doc_type_id:int,doc_type_name:string,total:int,pending:int,submitted:int,approved:int,returned:int}>
+     * @return list<array{doc_type_id:int,doc_type_name:string,total:int,pending:int,submitted:int,approved:int,revised:int}>
      */
     public static function completionByDocumentType(int $periodId): array
     {
@@ -539,7 +571,7 @@ final class Submission
                     SUM(CASE WHEN s.status = 'Pending' THEN 1 ELSE 0 END) AS pending,
                     SUM(CASE WHEN s.status = 'Submitted' THEN 1 ELSE 0 END) AS submitted,
                     SUM(CASE WHEN s.status = 'Approved' THEN 1 ELSE 0 END) AS approved,
-                    SUM(CASE WHEN s.status = 'Returned-for-revision' THEN 1 ELSE 0 END) AS returned
+                    SUM(CASE WHEN s.status = 'Revised' THEN 1 ELSE 0 END) AS revised
              FROM submissions s
              INNER JOIN requirements r ON r.requirement_id = s.requirement_id
              INNER JOIN document_types dt ON dt.doc_type_id = r.doc_type_id
@@ -618,7 +650,7 @@ final class Submission
     }
 
     /** The submissions.status ENUM values, in schema order. */
-    private const STATUSES = ['Pending', 'Submitted', 'Approved', 'Returned-for-revision'];
+    private const STATUSES = ['Pending', 'Submitted', 'Approved', 'Revised'];
 
     private static function pdo(): PDO
     {

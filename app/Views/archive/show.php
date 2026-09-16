@@ -11,10 +11,10 @@ $name = $period['label'] ?? ('AY ' . $period['school_year'] . ', ' . $period['se
 $isActive = (int) $period['is_active'] === 1;
 
 $statusPillClass = [
-    'Pending'               => 'status-pill-pending',
-    'Submitted'             => 'status-pill-submitted',
-    'Approved'              => 'status-pill-approved',
-    'Returned-for-revision' => 'status-pill-returned',
+    'Pending'   => 'status-pill-pending',
+    'Submitted' => 'status-pill-submitted',
+    'Approved'  => 'status-pill-approved',
+    'Revised'   => 'status-pill-revised',
 ];
 ?>
 <section class="page-head">

@@ -5,8 +5,8 @@
  * the profile fields the user had just edited (and vice versa).
  *
  * @var string $appName
- * @var array{user_id:int,employee_no:?string,first_name:string,last_name:string,email:string,program_dept:?string,password_hash:string,role_name:string} $profile
- * @var array{first_name:string,last_name:string,email:string,program_dept:string} $input
+ * @var array{user_id:int,employee_no:?string,first_name:string,last_name:string,email:string,program_code:?string,program_name:?string,password_hash:string,role_name:string} $profile
+ * @var array{first_name:string,last_name:string,email:string} $input
  * @var array<string,string> $profileErrors
  * @var array<string,string> $passwordErrors
  * @var array{type:string,message:string}|null $flash
@@ -55,6 +55,21 @@ require __DIR__ . '/../partials/header.php';
             </div>
         <?php endif; ?>
 
+        <?php // Read-only for the same reason as Role: requirement audiences can ?>
+        <?php // target a program (FR-35), so letting a faculty member set their own ?>
+        <?php // would let them edit their way out of a requirement aimed at it. ?>
+        <div class="field">
+            <span class="field-label">Program</span>
+            <p class="field-help">
+                <?php if ($profile['program_code'] !== null): ?>
+                    <?= htmlspecialchars($profile['program_code'] . ' — ' . (string) $profile['program_name']) ?>.
+                <?php else: ?>
+                    Not assigned to a program.
+                <?php endif; ?>
+                Your program is set by an administrator and cannot be changed here.
+            </p>
+        </div>
+
         <div class="field">
             <label for="first_name">First name</label>
             <input type="text" id="first_name" name="first_name" value="<?= htmlspecialchars($input['first_name']) ?>" maxlength="60" required>
@@ -90,14 +105,6 @@ require __DIR__ . '/../partials/header.php';
             <p class="field-help">Needed only if you are changing your email address.</p>
             <?php if (!empty($profileErrors['current_password'])): ?>
                 <p class="field-err"><?= htmlspecialchars($profileErrors['current_password']) ?></p>
-            <?php endif; ?>
-        </div>
-
-        <div class="field">
-            <label for="program_dept">Program / department</label>
-            <input type="text" id="program_dept" name="program_dept" value="<?= htmlspecialchars($input['program_dept']) ?>" maxlength="80" placeholder="BSIT">
-            <?php if (!empty($profileErrors['program_dept'])): ?>
-                <p class="field-err"><?= htmlspecialchars($profileErrors['program_dept']) ?></p>
             <?php endif; ?>
         </div>
 

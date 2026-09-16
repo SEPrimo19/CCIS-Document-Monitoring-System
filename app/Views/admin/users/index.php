@@ -1,7 +1,7 @@
 <?php
 /**
  * @var string $appName
- * @var list<array{user_id:int,first_name:string,last_name:string,email:string,role_id:int,role_name:string,status:string,created_at:string}> $users
+ * @var list<array{user_id:int,first_name:string,last_name:string,email:string,role_id:int,role_name:string,program_code:?string,status:string,created_at:string}> $users
  * @var int $currentUserId
  * @var array{type:string,message:string}|null $flash
  * @var string $csrf
@@ -12,7 +12,7 @@ require __DIR__ . '/../../partials/header.php';
     <div>
         <span class="badge">Secretary</span>
         <h1>Users</h1>
-        <p class="sub">Create, edit, and deactivate/reactivate accounts, and assign roles (FR-26).</p>
+        <p class="sub">Create, edit, and deactivate/reactivate accounts, and assign roles and programs (FR-26, FR-36).</p>
     </div>
     <a href="<?= url('/admin/users/new') ?>" class="btn-primary btn-inline">Add user</a>
 </section>
@@ -30,6 +30,7 @@ require __DIR__ . '/../../partials/header.php';
                 <th>Name</th>
                 <th>Email</th>
                 <th>Role</th>
+                <th>Program</th>
                 <th>Status</th>
                 <th>Actions</th>
             </tr>
@@ -37,7 +38,7 @@ require __DIR__ . '/../../partials/header.php';
         <tbody>
             <?php if ($users === []): ?>
                 <tr>
-                    <td colspan="5" class="table-empty">No users yet.</td>
+                    <td colspan="6" class="table-empty">No users yet.</td>
                 </tr>
             <?php endif; ?>
             <?php foreach ($users as $u): ?>
@@ -54,6 +55,7 @@ require __DIR__ . '/../../partials/header.php';
                     </td>
                     <td><?= htmlspecialchars($u['email']) ?></td>
                     <td><span class="role-pill"><?= htmlspecialchars($u['role_name']) ?></span></td>
+                    <td><?= $u['program_code'] !== null ? htmlspecialchars($u['program_code']) : '—' ?></td>
                     <td>
                         <span class="status-pill <?= $isActive ? 'status-pill-active' : 'status-pill-inactive' ?>">
                             <?= $isActive ? 'Active' : 'Inactive' ?>
