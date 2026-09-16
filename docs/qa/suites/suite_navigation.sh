@@ -307,4 +307,43 @@ assert_eq "search results page has exactly one <script> tag (the app.js include)
 stray_q=$(curl -s -c "$SEC" -b "$SEC" "$BASE/admin/dashboard?q=leaky" | grep -c 'value="leaky"')
 assert_eq "a stray ?q= on another screen is not echoed into the search box" "0" "$stray_q"
 
+# --- Fixed chrome, and the stacking order that keeps it usable ---------------
+# This regressed twice, both times silently. A blanket `.app-shell > *` rule
+# added for the watermark has the SAME specificity as .topbar/.sidebar and sits
+# later in the file, so it overrode first their `position` (the bars scrolled
+# away with the page) and then their `z-index` (the content painted over the top
+# bar). Neither produces an error; you only find out by looking. These assert
+# the stylesheet itself, because there is no way to observe a computed layer
+# over HTTP.
+css=$(curl -s "$BASE/assets/css/style.css")
+
+# Matches a real RULE (selector followed by {), not the prose above that names
+# the selector while explaining why it must not come back.
+blanket=$(echo "$css" | grep -cE '^[[:space:]]*\.app-shell[[:space:]]*>[[:space:]]*\*[[:space:]]*\{')
+assert_eq "no blanket .app-shell > * rule (it clobbers the chrome)" "0" "$blanket"
+
+topbar_block=$(echo "$css" | awk '/^\.topbar \{/,/^\}/')
+if echo "$topbar_block" | grep -q 'position: fixed'; then
+  pass "top bar is position: fixed"
+else
+  fail "top bar is not position: fixed — it will scroll away"
+fi
+assert_eq "top bar declares its own z-index" "1" "$(echo "$topbar_block" | grep -c 'z-index: 20')"
+
+sidebar_block=$(echo "$css" | awk '/^\.sidebar \{/,/^\}/')
+if echo "$sidebar_block" | grep -q 'position: fixed'; then
+  pass "sidebar is position: fixed"
+else
+  fail "sidebar is not position: fixed — it will scroll away"
+fi
+assert_eq "sidebar declares its own z-index" "1" "$(echo "$sidebar_block" | grep -c 'z-index: 30')"
+
+# The content column must sit above the watermark (0) and below the bars.
+main_block=$(echo "$css" | awk '/^\.app-shell > \.app-main \{/,/^\}/')
+assert_eq "content column is layered above the watermark" "1" "$(echo "$main_block" | grep -c 'z-index: 1')"
+
+# The bar is out of flow, so something must give its height back — exactly once.
+assert_eq "shell pads for the out-of-flow top bar" "1" \
+  "$(echo "$css" | grep -c '\.app-shell-auth { padding-top: var(--topbar-h); }')"
+
 result_line

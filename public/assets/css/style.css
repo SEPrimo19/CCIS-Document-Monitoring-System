@@ -1872,16 +1872,18 @@ body {
 .brand-mark-jpg::before  { background-image: url("../img/logo.jpg"); }
 .brand-mark-jpeg::before { background-image: url("../img/logo.jpeg"); }
 
-/* Real content above the mark. Without this the fixed pseudo-element, which
-   establishes a stacking context, would paint over the page.
+/* Stacking, stated once. The watermark is a fixed pseudo-element, so without an
+   explicit layer it would paint over the page.
 
-   Deliberately does NOT set `position`: an earlier version of this rule used
-   `position: relative`, which has the same specificity as `.topbar`/`.sidebar`
-   but comes later in the file, so it silently replaced their positioning and
-   the chrome scrolled away with the page. z-index alone is enough — both are
-   already positioned, and .app-main gets its own position below. */
-.app-shell > * { z-index: 1; }
-.app-shell > .app-main { position: relative; }
+   ONLY the content column gets this — never a blanket `.app-shell > *`. That
+   selector has the same specificity as .topbar and .sidebar and sits later in
+   the file, so it overrode BOTH their position (the chrome scrolled away) and
+   their z-index (the content painted over the top bar). Each layer is declared
+   on the thing it belongs to: watermark 0, content 1, top bar 20, sidebar 30. */
+.app-shell > .app-main {
+    position: relative;
+    z-index: 1;
+}
 
 /* --- Signed-out layout ----------------------------------------------------
    The sign-in card is the only thing on the page, so it is centred in the
