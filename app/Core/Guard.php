@@ -76,6 +76,7 @@ final class Guard
 
         if ($fresh !== null && $fresh['status'] === 'active') {
             Auth::refreshRole($fresh['role_name']);
+            Auth::refreshAvatar($fresh['avatar_path'] ?? null);
         }
 
         return $fresh;

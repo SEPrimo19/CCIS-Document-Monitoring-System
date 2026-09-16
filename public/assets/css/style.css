@@ -533,6 +533,55 @@ body {
 }
 .avatar-img { width: 100%; height: 100%; object-fit: cover; }
 
+/* FR-40 profile-photo card. .avatar-lg is the same circular frame at the size
+   the profile screen shows it, so the sidebar and the profile page cannot drift
+   apart — only the dimensions and the initials' type size change. Tokens only:
+   the dark theme follows without a second rule set. */
+.avatar-lg {
+    width: 96px;
+    height: 96px;
+}
+.avatar-lg .avatar-initials {
+    font-size: 2rem;
+}
+.photo-row {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    flex-wrap: wrap;
+}
+.photo-actions {
+    display: flex;
+    flex-direction: column;
+    gap: .75rem;
+    min-width: 0;
+}
+.photo-form {
+    display: flex;
+    flex-direction: column;
+    gap: .4rem;
+    align-items: flex-start;
+}
+/* The file input is the control most likely to force a horizontal scrollbar on
+   a phone: its rendered width is decided by the browser from the filename, not
+   by the layout. Capping it is what keeps the card inside the viewport. */
+.photo-form .file-field {
+    max-width: 100%;
+}
+
+@media (max-width: 480px) {
+    .photo-row {
+        gap: 1rem;
+    }
+    .avatar-lg {
+        width: 72px;
+        height: 72px;
+    }
+    .avatar-lg .avatar-initials {
+        font-size: 1.5rem;
+    }
+}
+
 .role-pill {
     display: inline-block;
     font-size: .7rem;

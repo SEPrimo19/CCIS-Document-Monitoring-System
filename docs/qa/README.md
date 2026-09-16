@@ -13,6 +13,7 @@ wherever the repo is checked out.
 | `suites/suite_*.sh` | The 13 functional suites, covering FR-1..FR-34. |
 | `suites/setup_fixtures.sh` | Creates the requirement/submission fixtures through the real Secretary endpoints (not raw SQL), so notification and audit side effects are exercised. Contributes 5 checks. |
 | `suites/common.sh` | Shared helpers: login, CSRF scraping, assertions. |
+| `suites/suite_profile_photo.sh` | FR-40 profile photos (26 checks): the accepted formats, every rejection path (SVG, PHP renamed to .png, text renamed to .jpg, oversized by bytes and by pixels, too small, type/extension mismatch, zero bytes), that replacing and removing a photo unlink the old file, and the access rules. Safe against real data — it only touches faculty1's own avatar and removes it again. Run `make_avatar_fixtures.sh` first. |
 | `suites/smoke_postcommit.sh` | Fast 49-check smoke test (added 2026-09-15) — environment, auth, RBAC, the period confirmation guard, every screen route, and CSV export. Non-destructive: GETs and logins only. |
 
 ## Counting note
@@ -29,6 +30,7 @@ the 14th file and is not a suite.
 |---|---|
 | `suite_navigation.sh` | `suite_profile.sh` |
 | `suite_rbac.sh` | `suite_review.sh` |
+| `suite_profile_photo.sh` | |
 | `smoke_postcommit.sh` | `suite_resubmit.sh` |
 | | `suite_admin_crud.sh` |
 | | `setup_fixtures.sh` |

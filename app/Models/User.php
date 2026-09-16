@@ -287,12 +287,12 @@ final class User
     }
 
     /**
-     * @return array{user_id:int,first_name:string,last_name:string,email:string,status:string,role_name:string}|null
+     * @return array{user_id:int,first_name:string,last_name:string,email:string,status:string,avatar_path:?string,role_name:string}|null
      */
     public static function findById(int $userId): ?array
     {
         $stmt = self::pdo()->prepare(
-            'SELECT u.user_id, u.first_name, u.last_name, u.email, u.status, r.role_name
+            'SELECT u.user_id, u.first_name, u.last_name, u.email, u.status, u.avatar_path, r.role_name
              FROM users u
              INNER JOIN roles r ON r.role_id = u.role_id
              WHERE u.user_id = :id
@@ -322,7 +322,7 @@ final class User
     public static function profileFor(int $userId): ?array
     {
         $stmt = self::pdo()->prepare(
-            'SELECT u.user_id, u.employee_no, u.first_name, u.last_name, u.email,
+            'SELECT u.user_id, u.employee_no, u.first_name, u.last_name, u.email, u.avatar_path,
                     p.code AS program_code, p.name AS program_name,
                     u.password_hash, r.role_name
              FROM users u
@@ -598,5 +598,56 @@ final class User
         }
 
         return Database::connection($config['db']);
+    }
+
+    /**
+     * The stored filename of a user's profile photo, or null (FR-40).
+     *
+     * Returns null for an account that does not exist as well as for one with
+     * no photo: AvatarController answers both with the same 404, so a signed-in
+     * user cannot use the avatar route to discover which user ids are real.
+     */
+    public static function avatarPathFor(int $userId): ?string
+    {
+        $stmt = self::pdo()->prepare(
+            'SELECT avatar_path FROM users WHERE user_id = :id LIMIT 1'
+        );
+        $stmt->execute([':id' => $userId]);
+        $row = $stmt->fetch();
+
+        if ($row === false) {
+            return null;
+        }
+
+        $path = $row['avatar_path'] ?? null;
+
+        return is_string($path) && $path !== '' ? $path : null;
+    }
+
+    /**
+     * Point a user at a new profile photo, or clear it with null (FR-40).
+     *
+     * Only ever called with the SIGNED-IN user's own id — a photo is the one
+     * thing on the profile screen a user may change about themselves, because
+     * unlike role, status and program it decides nothing about what the system
+     * expects of them (contrast FR-36).
+     *
+     * Returns the filename this row held before the update, so the caller can
+     * unlink it. Storage is not transactional: the row is the record of truth,
+     * and the caller deletes the old file only after this has committed.
+     */
+    public static function updateAvatarPath(int $userId, ?string $storedName): ?string
+    {
+        $previous = self::avatarPathFor($userId);
+
+        $stmt = self::pdo()->prepare(
+            'UPDATE users SET avatar_path = :path WHERE user_id = :id'
+        );
+        $stmt->execute([
+            ':path' => $storedName,
+            ':id'   => $userId,
+        ]);
+
+        return $previous;
     }
 }

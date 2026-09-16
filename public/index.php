@@ -71,6 +71,7 @@ use App\Controllers\AdminController;
 use App\Controllers\ArchiveController;
 use App\Controllers\AuthController;
 use App\Controllers\DashboardController;
+use App\Controllers\AvatarController;
 use App\Controllers\DocumentController;
 use App\Controllers\DocumentTypeController;
 use App\Controllers\FacultyController;
@@ -179,6 +180,13 @@ $router->get('/archive/{id}', [ArchiveController::class, 'show']);
 $router->get('/profile', [ProfileController::class, 'show']);
 $router->post('/profile', [ProfileController::class, 'update']);
 $router->post('/profile/password', [ProfileController::class, 'changePassword']);
+$router->post('/profile/photo', [ProfileController::class, 'uploadPhoto']);
+$router->post('/profile/photo/remove', [ProfileController::class, 'removePhoto']);
+
+// Extension-less on purpose (FR-40): the dev server serves any URI with a file
+// extension straight from disk, so /avatars/3.png would never reach the router.
+// Profile photos live outside the web root and are only ever served from here.
+$router->get('/avatars/{id}', [AvatarController::class, 'show']);
 
 // FR-37: role-aware search. Any signed-in role may reach it; what each one
 // searches is decided inside the controller and bound into the SQL, so there

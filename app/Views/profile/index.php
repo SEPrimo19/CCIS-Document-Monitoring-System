@@ -28,6 +28,52 @@ require __DIR__ . '/../partials/header.php';
     </p>
 <?php endif; ?>
 
+<?php
+/**
+ * FR-40 profile photo. Optional, self-service, and the one thing on this screen
+ * a user may change about themselves without re-entering their password —
+ * unlike role, status and program, a photo decides nothing about what the
+ * system expects of them (contrast FR-36).
+ *
+ * Both actions are POST + CSRF because both change state. The form carries no
+ * user id: the controller takes it from the session, so there is nothing here
+ * to forge.
+ */
+$photoUrl = avatar_url($profile['avatar_path'] ?? null, (int) $profile['user_id']);
+?>
+<section class="form-card">
+    <h2>Profile photo</h2>
+    <p class="sub">Optional. JPG, PNG or WEBP, up to 2&nbsp;MB. Shown beside your name in the sidebar.</p>
+
+    <div class="photo-row">
+        <span class="avatar avatar-lg" aria-hidden="true">
+            <?php if ($photoUrl !== null): ?>
+                <img class="avatar-img" src="<?= htmlspecialchars($photoUrl) ?>" alt="" width="96" height="96">
+            <?php else: ?>
+                <span class="avatar-initials"><?= htmlspecialchars(user_initials($profile['first_name'], $profile['last_name'])) ?></span>
+            <?php endif; ?>
+        </span>
+
+        <div class="photo-actions">
+            <form method="post" action="<?= url('/profile/photo') ?>" enctype="multipart/form-data" class="photo-form">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+                <label class="field-label" for="photo"><?= $photoUrl !== null ? 'Replace photo' : 'Upload a photo' ?></label>
+                <input type="file" id="photo" name="photo" accept="image/jpeg,image/png,image/webp" class="file-field">
+                <button type="submit" class="btn-primary btn-inline"><?= $photoUrl !== null ? 'Replace' : 'Upload' ?></button>
+            </form>
+
+            <?php if ($photoUrl !== null): ?>
+                <?php // Separate form: a remove must not be able to ride along on an upload. ?>
+                <form method="post" action="<?= url('/profile/photo/remove') ?>" class="inline-form"
+                      data-confirm="Remove your profile photo?&#10;&#10;Your initials will be shown instead. You can upload a new photo at any time.">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+                    <button type="submit" class="btn-sm btn-danger">Remove photo</button>
+                </form>
+            <?php endif; ?>
+        </div>
+    </div>
+</section>
+
 <section class="form-card">
     <h2>Details</h2>
 

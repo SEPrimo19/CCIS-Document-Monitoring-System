@@ -291,9 +291,20 @@ $notifNavLink = static function () use ($currentPath, $unreadNotifCount): void {
                   // surrounding markup is unchanged. The role moved to a line of
                   // its own under the name; it is what the whole menu above is
                   // keyed to, so it must not simply vanish with the pill. ?>
+            <?php // FR-40: the uploaded photo when there is one, initials otherwise.
+                  // avatar_path rides on the session user, which Guard re-reads from
+                  // the database on every request, so a new photo appears immediately
+                  // and a removed one disappears just as fast — no cache to bust.
+                  // alt="" because .who-name right beside it already says whose face
+                  // this is; the frame is aria-hidden for the same reason. ?>
+            <?php $avatarUrl = avatar_url($authUser['avatar_path'] ?? null, (int) ($authUser['user_id'] ?? 0)); ?>
             <a class="who" href="<?= url('/profile') ?>">
                 <span class="avatar" aria-hidden="true">
-                    <span class="avatar-initials"><?= htmlspecialchars(user_initials($authUser['first_name'], $authUser['last_name'])) ?></span>
+                    <?php if ($avatarUrl !== null): ?>
+                        <img class="avatar-img" src="<?= htmlspecialchars($avatarUrl) ?>" alt="" width="40" height="40">
+                    <?php else: ?>
+                        <span class="avatar-initials"><?= htmlspecialchars(user_initials($authUser['first_name'], $authUser['last_name'])) ?></span>
+                    <?php endif; ?>
                 </span>
                 <span class="who-text">
                     <span class="who-name"><?= htmlspecialchars($authUser['first_name'] . ' ' . $authUser['last_name']) ?></span>

@@ -162,6 +162,21 @@ final class Auth
     }
 
     /**
+     * Keep the session's copy of the profile photo in step with the database
+     * (FR-40).
+     *
+     * Guard calls this on every authenticated request from the row it already
+     * re-reads, so the sidebar avatar costs no extra query and cannot go stale
+     * — a photo uploaded or removed in another tab shows up on the next page.
+     */
+    public static function refreshAvatar(?string $avatarPath): void
+    {
+        if (isset($_SESSION[self::SESSION_KEY])) {
+            $_SESSION[self::SESSION_KEY]['avatar_path'] = $avatarPath;
+        }
+    }
+
+    /**
      * Update the signed-in user's name and email in the session after they
      * edit their own profile (FR-5), so the header greeting and every
      * `Auth::user()` read reflect the change immediately rather than staying

@@ -103,3 +103,23 @@ if (!function_exists('user_initials')) {
         return $letters !== '' ? mb_strtoupper($letters) : '?';
     }
 }
+
+if (!function_exists('avatar_url')) {
+    /**
+     * URL of a user's profile photo (FR-40), or null when they have none.
+     *
+     * Takes the stored filename the caller already has — the session user
+     * carries `avatar_path`, refreshed by Guard on every request — so rendering
+     * the sidebar avatar costs no extra query. The filename itself is never put
+     * in the URL: the route is keyed by user id and AvatarController resolves
+     * the file, so a stored name cannot leak or be guessed at.
+     */
+    function avatar_url(?string $storedName, int $userId): ?string
+    {
+        if ($storedName === null || $storedName === '' || $userId <= 0) {
+            return null;
+        }
+
+        return url('/avatars/' . $userId);
+    }
+}
