@@ -1928,3 +1928,25 @@ body {
     }
     .app-shell-auth > .topbar { left: 0; }
 }
+
+/* Extracted .docx text (FR-41). Pre-wrap keeps the paragraph breaks the
+   extractor preserved without letting a long unbroken line force the page
+   sideways; the max-height plus scroll stops a 30,000-character chapter from
+   burying the actions above it. tabindex on the element makes the scroll region
+   reachable by keyboard, which a plain overflow container is not. */
+.doc-text {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    max-height: 60vh;
+    overflow-y: auto;
+    padding: 1rem 1.1rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    font-size: .9rem;
+    line-height: 1.65;
+}
+.doc-text:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+@media (max-width: 480px) {
+    .doc-text { max-height: 50vh; font-size: .85rem; }
+}

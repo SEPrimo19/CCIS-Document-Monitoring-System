@@ -233,7 +233,8 @@ $scopeNote = $isSecretary
                                 <td data-label="Version">v<?= (int) $row['version_no'] ?></td>
                                 <td data-label="Uploaded"><?= htmlspecialchars(date('M j, Y', strtotime($row['uploaded_at']))) ?></td>
                                 <td data-label="Action" class="table-actions">
-                                    <a href="<?= url('/documents/' . (int) $row['file_id'] . '/download') ?>" class="btn-sm btn-secondary">Download</a>
+                                    <a href="<?= url('/documents/' . (int) $row['file_id']) ?>" class="btn-sm btn-primary-sm">View</a>
+                                <a href="<?= url('/documents/' . (int) $row['file_id'] . '/download') ?>" class="btn-sm btn-secondary">Download</a>
                                     <a href="<?= url('/submissions/' . (int) $row['submission_id']) ?>" class="btn-sm btn-secondary">Details</a>
                                 </td>
                             </tr>

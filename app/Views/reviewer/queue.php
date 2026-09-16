@@ -112,7 +112,8 @@ $isActivePeriod = $period !== null && (int) $period['is_active'] === 1;
                             <td class="table-actions">
                                 <a href="<?= url('/reviewer/submissions/' . $row['submission_id'] . '/review') ?>" class="btn-sm btn-primary-sm">Review</a>
                                 <?php if ($row['file_id'] !== null): ?>
-                                    <a href="<?= url('/documents/' . $row['file_id'] . '/download') ?>" class="btn-sm btn-secondary">Download</a>
+                                    <a href="<?= url('/documents/' . $row['file_id']) ?>" class="btn-sm btn-primary-sm">View</a>
+                                <a href="<?= url('/documents/' . $row['file_id'] . '/download') ?>" class="btn-sm btn-secondary">Download</a>
                                 <?php endif; ?>
                             </td>
                         </tr>

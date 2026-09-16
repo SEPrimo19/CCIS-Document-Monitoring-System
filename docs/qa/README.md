@@ -13,6 +13,7 @@ wherever the repo is checked out.
 | `suites/suite_*.sh` | The 13 functional suites, covering FR-1..FR-34. |
 | `suites/setup_fixtures.sh` | Creates the requirement/submission fixtures through the real Secretary endpoints (not raw SQL), so notification and audit side effects are exercised. Contributes 5 checks. |
 | `suites/common.sh` | Shared helpers: login, CSRF scraping, assertions. |
+| `suites/suite_document_viewer.sh` | FR-41 in-app viewer (20 checks): access control matching `/download` including 404-not-403, that the viewer either previews or says why it cannot, that extracted .docx text is labelled as a text extract, that only the inline bytes route relaxes `X-Frame-Options` while ordinary pages stay `DENY`, and that an extension-bearing URL does not bypass the router. Read-only — safe against real data. |
 | `suites/suite_profile_photo.sh` | FR-40 profile photos (26 checks): the accepted formats, every rejection path (SVG, PHP renamed to .png, text renamed to .jpg, oversized by bytes and by pixels, too small, type/extension mismatch, zero bytes), that replacing and removing a photo unlink the old file, and the access rules. Safe against real data — it only touches faculty1's own avatar and removes it again. Run `make_avatar_fixtures.sh` first. |
 | `suites/smoke_postcommit.sh` | Fast 49-check smoke test (added 2026-09-15) — environment, auth, RBAC, the period confirmation guard, every screen route, and CSV export. Non-destructive: GETs and logins only. |
 

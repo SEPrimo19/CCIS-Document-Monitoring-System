@@ -111,7 +111,8 @@ $formatSize = static function (int $bytes): string {
                         <td data-label="Uploaded by"><?= htmlspecialchars($version['uploaded_by_name']) ?></td>
                         <td data-label="Uploaded"><?= htmlspecialchars(date('M j, Y g:ia', strtotime($version['uploaded_at']))) ?></td>
                         <td class="table-actions" data-label="Action">
-                            <a href="<?= url('/documents/' . $version['file_id'] . '/download') ?>" class="btn-sm btn-secondary">Download</a>
+                            <a href="<?= url('/documents/' . $version['file_id']) ?>" class="btn-sm btn-primary-sm">View</a>
+                                <a href="<?= url('/documents/' . $version['file_id'] . '/download') ?>" class="btn-sm btn-secondary">Download</a>
                         </td>
                     </tr>
                 <?php endforeach; ?>

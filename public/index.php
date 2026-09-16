@@ -169,6 +169,9 @@ $router->get('/reviewer/compliance', [ReviewerController::class, 'compliance']);
 // an unknown value is a 404, never a string that reaches SQL.
 $router->get('/reviewer/status/{status}', [ReviewerController::class, 'byStatus']);
 
+// FR-41: the in-app viewer screen. Registered before the two routes that
+// serve raw bytes, which it links to.
+$router->get('/documents/{id}', [DocumentController::class, 'show']);
 $router->get('/documents/{id}/download', [DocumentController::class, 'download']);
 // FR-41: the same bytes served inline for the in-app viewer. PDFs only —
 // see DocumentController::view() for why, and for the framing headers it

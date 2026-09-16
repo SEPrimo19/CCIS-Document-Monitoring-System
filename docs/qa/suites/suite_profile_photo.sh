@@ -30,6 +30,15 @@ upload() {
 }
 
 login "$J" faculty1@nwssu.edu.ph 'Faculty@123' >/dev/null
+
+# Start from a known state. Every count below is relative to the baseline, so a
+# photo left behind by an interrupted earlier run shifts them all by one and the
+# suite fails for a reason that has nothing to do with the code. Removing
+# faculty1's own photo first is within this suite's remit — it removes it at the
+# end anyway — and is a no-op when there is none.
+csrf_reset=$(csrf)
+curl -s -o /dev/null -c "$J" -b "$J" -F "csrf_token=$csrf_reset" "$BASE/profile/photo/remove"
+
 echo "--- baseline ---"
 BEFORE=$(count_files)
 echo "files in storage/avatars: $BEFORE"

@@ -99,6 +99,7 @@ $statusPillClass = [
                                 </form>
                             <?php endif; ?>
                             <?php if ($hasFile): ?>
+                                <a href="<?= url('/documents/' . $row['file_id']) ?>" class="btn-sm btn-primary-sm">View</a>
                                 <a href="<?= url('/documents/' . $row['file_id'] . '/download') ?>" class="btn-sm btn-secondary">Download</a>
                             <?php endif; ?>
                             <?php // Always last, and always on its own line at desktop (see ?>

@@ -6,6 +6,7 @@ namespace App\Controllers;
 
 use App\Core\Auth;
 use App\Core\Controller;
+use App\Core\DocxText;
 use App\Core\Guard;
 use App\Models\DocumentFile;
 
@@ -57,6 +58,87 @@ final class DocumentController extends Controller
 
         readfile($absolutePath);
         exit;
+    }
+
+    /**
+     * The in-app document viewer (FR-41).
+     *
+     * The client asked to read a submission inside the system rather than
+     * download it, and every list that reaches a document now opens here. What
+     * the page can show depends on the format, and it says so rather than
+     * pretending:
+     *
+     *  - PDF   rendered in place, in a frame fed by preview() below.
+     *  - DOCX  its text, extracted (DocxText). Not a rendering — tables
+     *          flatten and images are gone — but readable, which is what a
+     *          reviewer needs to reach a decision. Most of this college's
+     *          paperwork is Word, so without this the viewer would have said
+     *          "download to read" for nearly every document.
+     *  - DOC   download only. The legacy binary format is not a ZIP of XML and
+     *          cannot be read without a converter this deployment does not have.
+     *
+     * Authorization is download()'s, unchanged, including 404-not-403 for a
+     * document that exists but is not yours: a third route to the same bytes
+     * must not become a softer one.
+     */
+    public function show(string $fileId): void
+    {
+        Guard::requireAuth();
+
+        $file = DocumentFile::findForViewer((int) $fileId);
+
+        if ($file === null) {
+            $this->notFoundPage();
+            return;
+        }
+
+        $user = Auth::user();
+        $role = $user['role_name'] ?? '';
+        $isOwningFaculty = $role === 'Faculty' && (int) $file['faculty_id'] === (int) ($user['user_id'] ?? 0);
+
+        if ($role !== 'Secretary' && !$isOwningFaculty) {
+            $this->notFoundPage();
+            return;
+        }
+
+        $absolutePath = dirname(__DIR__, 2) . '/storage/uploads/' . basename($file['file_path']);
+        $ext = strtolower(pathinfo((string) $file['file_name'], PATHINFO_EXTENSION));
+
+        $missing = !is_file($absolutePath);
+        $mode = 'download-only';
+        $text = null;
+        $textStatus = null;
+        $truncated = false;
+
+        if (!$missing) {
+            if ($ext === 'pdf' && $file['mime_type'] === 'application/pdf') {
+                $mode = 'pdf';
+            } elseif ($ext === 'docx') {
+                $extracted = DocxText::extract($absolutePath);
+                $textStatus = $extracted['status'];
+                $truncated = $extracted['truncated'];
+
+                if ($extracted['status'] === DocxText::OK) {
+                    $mode = 'text';
+                    $text = $extracted['text'];
+                }
+            }
+        }
+
+        $this->view('documents/show', [
+            'appName'     => $this->config()['app']['name'],
+            // NOT 'file': Controller::view() does extract($data, EXTR_SKIP)
+            // and already holds a local $file (the view's own path), so that
+            // key is silently dropped and the view receives a string.
+            'document'    => $file,
+            'ext'         => $ext,
+            'mode'        => $mode,
+            'text'        => $text,
+            'textStatus'  => $textStatus,
+            'truncated'   => $truncated,
+            'missing'     => $missing,
+            'isSecretary' => $role === 'Secretary',
+        ]);
     }
 
     /**

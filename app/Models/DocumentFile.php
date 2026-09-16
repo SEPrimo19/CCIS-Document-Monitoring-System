@@ -139,4 +139,39 @@ final class DocumentFile
 
         return Database::connection($config['db']);
     }
+
+    /**
+     * One file with everything the in-app viewer screen shows around it
+     * (FR-41): who it belongs to, what it answers, and which version it is.
+     *
+     * Separate from findWithOwner() rather than widening it: that one backs the
+     * download and inline routes, which are hot paths that need the ownership
+     * columns and nothing else. This one is for a single screen render.
+     *
+     * @return array{file_id:int,submission_id:int,file_name:string,file_path:string,mime_type:string,file_size:int,version_no:int,uploaded_at:string,faculty_id:int,faculty_name:string,status:string,current_version:int,title:string,doc_type_name:string,deadline:?string,period_label:?string,school_year:string,semester:string}|null
+     */
+    public static function findForViewer(int $fileId): ?array
+    {
+        $stmt = self::pdo()->prepare(
+            "SELECT f.file_id, f.submission_id, f.file_name, f.file_path, f.mime_type,
+                    f.file_size, f.version_no, f.uploaded_at,
+                    s.faculty_id, s.status, s.current_version,
+                    CONCAT(u.first_name, ' ', u.last_name) AS faculty_name,
+                    r.title, r.deadline,
+                    dt.name AS doc_type_name,
+                    p.label AS period_label, p.school_year, p.semester
+             FROM document_files f
+             INNER JOIN submissions s      ON s.submission_id = f.submission_id
+             INNER JOIN users u            ON u.user_id = s.faculty_id
+             INNER JOIN requirements r     ON r.requirement_id = s.requirement_id
+             INNER JOIN document_types dt  ON dt.doc_type_id = r.doc_type_id
+             INNER JOIN academic_periods p ON p.period_id = r.period_id
+             WHERE f.file_id = :id
+             LIMIT 1"
+        );
+        $stmt->execute([':id' => $fileId]);
+        $row = $stmt->fetch();
+
+        return $row === false ? null : $row;
+    }
 }
