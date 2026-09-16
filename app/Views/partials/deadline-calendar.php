@@ -41,7 +41,14 @@ $weekdays = [
 $calendarTargetHref = url($calendarTargetPath);
 $calendarIsThisMonth = $calendarWindow['month'] === date('Y-m');
 ?>
-<section class="calendar-section" aria-labelledby="calendar-heading">
+<?php // data-calendar marks the region app.js swaps in place when a month
+     // link is clicked. Everything inside is replaced wholesale, so the
+     // markup below stays the single definition of the calendar for both
+     // the scripted and unscripted paths. aria-live announces the new
+     // month to a screen reader, which a full page load would have done
+     // by itself. ?>
+<section class="calendar-section" aria-labelledby="calendar-heading"
+         data-calendar aria-live="polite" aria-busy="false">
     <h2 class="section-title" id="calendar-heading">Deadline calendar</h2>
 
     <div class="calendar-card">

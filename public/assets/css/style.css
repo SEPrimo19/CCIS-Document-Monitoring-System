@@ -1720,3 +1720,14 @@ body {
         min-height: 320px;
     }
 }
+
+/* While a month is being fetched. Deliberately subtle: the swap is usually
+   fast enough that a spinner would flash, but with no cue at all a slow month
+   looks like a dead button. Tokens only. */
+.calendar-section[aria-busy="true"] .calendar-card {
+    opacity: .55;
+    transition: opacity .12s ease-in;
+}
+.calendar-section[aria-busy="true"] .calendar-nav {
+    pointer-events: none;
+}

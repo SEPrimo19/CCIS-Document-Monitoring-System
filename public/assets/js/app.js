@@ -193,3 +193,114 @@
         }
     });
 })();
+
+// Deadline-calendar month navigation, in place (FR-39).
+//
+// The prev/next/this-month controls are ordinary links to the same dashboard
+// with a different ?month=, and they stay that way: with scripting off they
+// still work, and each month is still bookmarkable. This only intercepts the
+// click and swaps the calendar region instead of reloading the page around it.
+//
+// It re-fetches the dashboard and lifts [data-calendar] out of the response
+// rather than calling a JSON endpoint, so the server keeps ONE definition of
+// the calendar. A partial API would be a second one to keep in step.
+(function () {
+    'use strict';
+
+    if (!window.fetch || !window.DOMParser || !window.history || !history.pushState) {
+        return; // Leave the plain links alone.
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        var region = document.querySelector('[data-calendar]');
+
+        if (!region) {
+            return;
+        }
+
+        var inFlight = null;
+
+        function load(url, push) {
+            if (inFlight) {
+                inFlight.abort();
+            }
+
+            var controller = window.AbortController ? new AbortController() : null;
+            inFlight = controller;
+            region.setAttribute('aria-busy', 'true');
+            region.classList.add('is-loading');
+
+            fetch(url, {
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'fetch' },
+                signal: controller ? controller.signal : undefined
+            }).then(function (response) {
+                if (!response.ok) {
+                    throw new Error('HTTP ' + response.status);
+                }
+                return response.text();
+            }).then(function (html) {
+                var parsed = new DOMParser().parseFromString(html, 'text/html');
+                var fresh = parsed.querySelector('[data-calendar]');
+
+                // A session that expired mid-fetch returns the login page, which
+                // has no calendar in it. Falling back to a real navigation is
+                // what puts the user on the login screen instead of silently
+                // doing nothing.
+                if (!fresh) {
+                    window.location.href = url;
+                    return;
+                }
+
+                region.innerHTML = fresh.innerHTML;
+
+                if (push) {
+                    history.pushState({ calendar: url }, '', url);
+                }
+            }).catch(function (error) {
+                if (error && error.name === 'AbortError') {
+                    return; // Superseded by a later click.
+                }
+                // Anything else (offline, a 500) falls back to the navigation the
+                // link would have done anyway, so a failure is never a dead button.
+                window.location.href = url;
+            }).then(function () {
+                inFlight = null;
+                region.setAttribute('aria-busy', 'false');
+                region.classList.remove('is-loading');
+            });
+        }
+
+        // Delegated: the links live inside the region that gets replaced, so a
+        // listener bound to them directly would not survive the first swap.
+        region.addEventListener('click', function (event) {
+            var link = event.target.closest ? event.target.closest('a.calendar-nav') : null;
+
+            if (!link || !region.contains(link)) {
+                return;
+            }
+
+            // Let the browser handle anything that is not a plain left click:
+            // middle-click and ctrl/cmd-click are "open in a new tab" and must
+            // keep working.
+            if (event.defaultPrevented || event.button !== 0 ||
+                event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+                return;
+            }
+
+            var href = link.getAttribute('href');
+
+            if (!href) {
+                return;
+            }
+
+            event.preventDefault();
+            load(href, true);
+        });
+
+        // Back/forward must move the calendar, not just the address bar.
+        window.addEventListener('popstate', function () {
+            load(window.location.href, false);
+        });
+    });
+})();
