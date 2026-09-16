@@ -123,3 +123,32 @@ if (!function_exists('avatar_url')) {
         return url('/avatars/' . $userId);
     }
 }
+
+if (!function_exists('brand_mark_class')) {
+    /**
+     * Body class naming the supplied logo's format, or '' when none exists.
+     *
+     * The page watermark is a CSS background-image, and the CSP forbids inline
+     * style, so the stylesheet cannot be handed a filename at runtime. Instead
+     * PHP states which format is present and the stylesheet carries one rule per
+     * supported extension. Without this the CSS would have to hard-code
+     * logo.png and would silently stop painting the day someone supplies
+     * logo.svg instead — the failure being an invisible background rather than
+     * an error, which is the kind that survives a long time.
+     */
+    function brand_mark_class(): string
+    {
+        $url = brand_logo();
+
+        if ($url === null) {
+            return '';
+        }
+
+        $ext = strtolower(pathinfo(parse_url($url, PHP_URL_PATH) ?? '', PATHINFO_EXTENSION));
+
+        return in_array($ext, ['svg', 'png', 'webp', 'jpg', 'jpeg'], true)
+            ? 'has-brand-mark brand-mark-' . $ext
+            : '';
+    }
+}
+

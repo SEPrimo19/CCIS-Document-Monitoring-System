@@ -1,36 +1,71 @@
+/* CCIS palette, taken from the college seal: gold #F0C102, white, and the
+   black of its linework. The seal is only those colours, which constrains the
+   theme in one important way — GOLD IS NOT A TEXT COLOUR ON LIGHT. Measured:
+   gold on white is 1.70:1 and white on gold is 1.70:1, both far below the 4.5:1
+   needed for body text. Gold on a dark ground is 10.74:1, and ink on gold is
+   10.22:1, which is why gold appears here only as a FILL behind dark text, or
+   as a foreground on dark. --brand is a deep bronze drawn from the same hue so
+   links and active state read as the gold family while staying legible
+   (7.42:1 on white). Every value below was measured, not eyeballed. */
 :root {
-    --bg: #f4f6fb;
+    --bg: #faf7ee;
     --surface: #ffffff;
-    --text: #1a2230;
-    --muted: #5b6675;
-    --border: #e3e8f0;
-    --brand: #1f4e8c;
+    --text: #1a1a1a;
+    --muted: #5a5a5a;
+    --border: #e6dfc9;
+    --brand: #6b5200;
+    /* The readable foreground for a --brand BACKGROUND. It has to be a
+       token because --brand flips from deep bronze to gold in the dark
+       theme: white reads on the bronze (7.42:1) but is 1.70:1 on gold,
+       so a hard-coded #fff would be unreadable in one of the two. */
+    --on-brand: #ffffff;
+    /* Page watermark strength. Measured: at 5% over --bg the seal costs
+       body text 16.25:1 -> 15.83:1 and muted 6.44 -> 6.27, so it stays
+       comfortably AA. Raise this and re-measure before shipping. */
+    --watermark-opacity: .05;
+    /* The seal's gold. A background for dark text, never a text colour here. */
+    --gold: #f0c102;
+    --gold-strong: #d9ae00;
+    --gold-ink: #1a1a1a;
+    --gold-soft: #fdf3cf;
     --ok: #1a7f4b;
     --ok-bg: #e6f5ec;
     --err: #b42318;
     --err-bg: #fdeceb;
-    --info: #1f4e8c;
-    --info-bg: #e8f0fb;
-    --shadow: 0 1px 3px rgba(16, 24, 40, .08), 0 1px 2px rgba(16, 24, 40, .06);
+    --info: #6b5200;
+    --info-bg: #fdf3cf;
+    --shadow: 0 1px 3px rgba(60, 48, 10, .10), 0 1px 2px rgba(60, 48, 10, .06);
     /* Sidebar width and the screen width below which it stops being a column.
        Kept as tokens so the layout and its breakpoint are stated once. */
     --sidebar-w: 240px;
 }
 
 @media (prefers-color-scheme: dark) {
+    /* On a dark ground the constraint inverts: the seal's gold becomes the
+       most legible accent available (10.74:1 on --bg), so --brand IS gold
+       here. The neutrals are warmed slightly so white text does not read cold
+       against it. */
     :root {
-        --bg: #0f141b;
-        --surface: #161d27;
-        --text: #e7ecf3;
-        --muted: #9aa6b6;
-        --border: #26303d;
-        --brand: #6aa2e0;
+        --bg: #12151a;
+        --surface: #1a1f26;
+        --text: #e7e3d8;
+        --muted: #a39c88;
+        --border: #2e3440;
+        --brand: #f0c102;
+        --on-brand: #1a1a1a;
+        /* Slightly stronger: gold on a dark ground reads fainter. At 6%
+           body is 12.91:1 and muted 6.05:1 — still AA. */
+        --watermark-opacity: .06;
+        --gold: #f0c102;
+        --gold-strong: #ffd426;
+        --gold-ink: #1a1a1a;
+        --gold-soft: #2a2410;
         --ok: #4ec27e;
         --ok-bg: #12271b;
         --err: #f0776b;
         --err-bg: #2a1614;
-        --info: #6aa2e0;
-        --info-bg: #16283f;
+        --info: #f0c102;
+        --info-bg: #2a2410;
     }
 }
 
@@ -57,7 +92,7 @@ body {
     font-size: .75rem;
     font-weight: 700;
     letter-spacing: .08em;
-    color: #fff;
+    color: var(--on-brand);
     background: var(--brand);
     padding: .3rem .6rem;
     border-radius: 999px;
@@ -172,7 +207,7 @@ body {
     top: 0;
     z-index: 10;
     background: var(--brand);
-    color: #fff;
+    color: var(--on-brand);
     padding: .6rem 1rem;
     border-radius: 0 0 8px 0;
     font-size: .85rem;
@@ -473,7 +508,13 @@ body {
     gap: .75rem;
     padding: 2.5rem 1.25rem 0;
 }
-.auth-logo { width: 56px; height: 56px; object-fit: contain; }
+/* The sign-in screen is the one place the seal is the subject rather than a
+   marker, so it is shown at a size where the ring text is actually legible —
+   below roughly 64px the wording in the seal turns to mush. */
+.auth-logo { width: 132px; height: 132px; object-fit: contain; }
+@media (max-width: 480px) {
+    .auth-logo { width: 104px; height: 104px; }
+}
 
 /* Now an <a> to /profile, not a <span>. There is no site-wide anchor reset, so
    without these it would carry the UA's permanent underline and give no hover
@@ -710,18 +751,21 @@ body {
 }
 .checkbox-list .muted-note { margin-left: .2rem; }
 
+/* The seal's gold carrying ink, measured at 10.22:1 — the most legible
+   control in the application, and the one place the brand colour appears at
+   full strength. White on gold would have been 1.70:1, so the label is dark. */
 .btn-primary {
     width: 100%;
     padding: .65rem 1rem;
     border: none;
     border-radius: 8px;
-    background: var(--brand);
-    color: #fff;
+    background: var(--gold);
+    color: var(--gold-ink);
     font-size: .95rem;
-    font-weight: 600;
+    font-weight: 700;
     cursor: pointer;
 }
-.btn-primary:hover { opacity: .92; }
+.btn-primary:hover { background: var(--gold-strong); }
 
 .alert { border-radius: 8px; padding: .6rem .8rem; font-size: .85rem; margin: 0 0 1rem; text-align: left; }
 .alert-err { background: var(--err-bg); color: var(--err); }
@@ -868,7 +912,7 @@ body {
 
 .btn-primary-sm {
     background: var(--brand);
-    color: #fff;
+    color: var(--on-brand);
     border-color: var(--brand);
 }
 .btn-primary-sm:hover { opacity: .9; }
@@ -1333,7 +1377,7 @@ body {
     background: var(--surface);
 }
 .notif-tab:hover { color: var(--brand); }
-.notif-tab.active { color: #fff; background: var(--brand); border-color: var(--brand); }
+.notif-tab.active { color: var(--on-brand); background: var(--brand); border-color: var(--brand); }
 
 /* --- Notification severity category tag (approval vs returned vs reminder).
    Text label + colour so the urgency cue is not colour-only. --- */
@@ -1447,6 +1491,9 @@ body {
 .print-only { display: none; }
 
 @media print {
+    /* Ink, and it would sit under the report table. */
+    .has-brand-mark::before { display: none; }
+
     /* Anything only useful on screen: navigation, the period selector, and
        every button/CSV link — none of it belongs on a printed report. */
     .topbar,
@@ -1731,3 +1778,38 @@ body {
 .calendar-section[aria-busy="true"] .calendar-nav {
     pointer-events: none;
 }
+
+/* --- The college seal, faint, behind every page ---------------------------
+   One fixed layer on the shell rather than a background on each screen, so it
+   does not scroll with the content or repeat per card, and so there is exactly
+   one place to tune it. It sits above the page background and below everything
+   else: cards and the sidebar are opaque, so the mark shows through the gutters
+   and around the content, which is what makes it read as a watermark rather
+   than as a picture behind text.
+
+   pointer-events: none so it can never intercept a click. Only painted when a
+   logo has actually been supplied (.has-brand-mark), so no request is made for
+   a file that is not there. One rule per format because the CSP forbids the
+   inline style that would otherwise let PHP pass the filename in. */
+.app-shell { position: relative; }
+
+.has-brand-mark::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: min(62vmin, 560px);
+    opacity: var(--watermark-opacity);
+    pointer-events: none;
+    z-index: 0;
+}
+.brand-mark-svg::before  { background-image: url("../img/logo.svg"); }
+.brand-mark-png::before  { background-image: url("../img/logo.png"); }
+.brand-mark-webp::before { background-image: url("../img/logo.webp"); }
+.brand-mark-jpg::before  { background-image: url("../img/logo.jpg"); }
+.brand-mark-jpeg::before { background-image: url("../img/logo.jpeg"); }
+
+/* Real content above the mark. Without this the fixed pseudo-element, which
+   establishes a stacking context, would paint over the page. */
+.app-shell > * { position: relative; z-index: 1; }

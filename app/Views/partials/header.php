@@ -115,7 +115,9 @@ $notifNavLink = static function () use ($currentPath, $unreadNotifCount): void {
     <link rel="stylesheet" href="<?= asset('css/style.css') ?>">
 </head>
 <body>
-<div class="app-shell<?= $authUser !== null ? ' app-shell-auth' : '' ?>">
+<?php // has-brand-mark/brand-mark-<ext> drive the page watermark in CSS; the
+     // CSP forbids inline style, so the format is stated as a class. ?>
+<div class="app-shell<?= $authUser !== null ? ' app-shell-auth' : '' ?><?= ($m = brand_mark_class()) !== '' ? ' ' . $m : '' ?>">
 
 <?php if ($authUser !== null): ?>
     <?php // Skip link: the sidebar is eleven links the keyboard would otherwise ?>
