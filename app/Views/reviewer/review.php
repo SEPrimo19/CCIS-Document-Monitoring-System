@@ -53,7 +53,7 @@ $canDecide = $submission['status'] === 'Submitted';
         $canPreview = $fileExt === 'pdf';
         ?>
         <div class="doc-actions">
-            <a href="<?= url('/documents/' . $submission['file_id']) ?>" class="btn-sm btn-primary-sm">Open document</a>
+            <a href="<?= url('/documents/' . $submission['file_id']) ?>" class="btn-sm btn-primary-sm" data-doc-view>Open document</a>
             <a href="<?= url('/documents/' . $submission['file_id'] . '/download') ?>" class="btn-sm btn-secondary">Download</a>
             <?php if (!$canPreview): ?>
                 <span class="muted-note">Preview is available for PDF files only &mdash; <?= htmlspecialchars(strtoupper($fileExt)) ?> documents open in Word.</span>

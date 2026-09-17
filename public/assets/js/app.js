@@ -304,3 +304,161 @@
         });
     });
 })();
+
+// Open a document in a modal over the current screen (FR-41).
+//
+// The View links stay ordinary links to /documents/{id}. That page is real and
+// linkable: it is what a browser without script gets, what "open in a new tab"
+// lands on, and what this fetches. Nothing here invents a second rendering —
+// the modal lifts [data-doc-body] out of the same page the server already
+// builds, so the two can never disagree about what a document looks like.
+//
+// <dialog> is used deliberately over a hand-rolled overlay: showModal() gives
+// focus trapping, Escape to close, an inert background and the backdrop for
+// free. Those are exactly the parts of a home-made modal that end up broken
+// for keyboard and screen-reader users.
+(function () {
+    'use strict';
+
+    document.addEventListener('DOMContentLoaded', function () {
+        var dialog = document.getElementById('doc-modal');
+
+        // No <dialog> support, or no dialog on this page: leave the links alone
+        // and let them navigate. A degraded modal is worse than a good page.
+        if (!dialog || typeof dialog.showModal !== 'function' || !window.fetch || !window.DOMParser) {
+            return;
+        }
+
+        var target = dialog.querySelector('[data-doc-target]');
+        var titleEl = dialog.querySelector('.doc-modal-title');
+        var opener = null;
+        var inFlight = null;
+
+        function close() {
+            if (dialog.open) {
+                dialog.close();
+            }
+        }
+
+        function reset() {
+            target.innerHTML = '<p class="muted-note">Loading&hellip;</p>';
+            titleEl.textContent = 'Document';
+            dialog.classList.remove('is-ready');
+        }
+
+        function open(url, label) {
+            if (inFlight) {
+                inFlight.abort();
+            }
+
+            var controller = window.AbortController ? new AbortController() : null;
+            inFlight = controller;
+
+            reset();
+            titleEl.textContent = label || 'Document';
+            dialog.showModal();
+
+            fetch(url, {
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'fetch' },
+                signal: controller ? controller.signal : undefined
+            }).then(function (response) {
+                if (!response.ok) {
+                    throw new Error('HTTP ' + response.status);
+                }
+                return response.text();
+            }).then(function (html) {
+                var parsed = new DOMParser().parseFromString(html, 'text/html');
+                var body = parsed.querySelector('[data-doc-body]');
+
+                // No body in the response means this was not the document page
+                // — most likely a session that expired and returned the login
+                // screen. Hand the browser the real navigation rather than
+                // showing an empty box.
+                if (!body) {
+                    close();
+                    window.location.href = url;
+                    return;
+                }
+
+                // The page heading duplicates the dialog's own title bar.
+                var head = body.querySelector('.page-head');
+                if (head) {
+                    var heading = head.querySelector('h1');
+                    if (heading) {
+                        titleEl.textContent = heading.textContent.trim();
+                    }
+                    head.parentNode.removeChild(head);
+                }
+
+                target.innerHTML = '';
+                while (body.firstChild) {
+                    target.appendChild(body.firstChild);
+                }
+
+                dialog.classList.add('is-ready');
+                target.scrollTop = 0;
+            }).catch(function (error) {
+                if (error && error.name === 'AbortError') {
+                    return;
+                }
+                // Offline, a 500, anything else: fall back to the navigation the
+                // link would have done, so View is never a dead button.
+                close();
+                window.location.href = url;
+            }).then(function () {
+                inFlight = null;
+            });
+        }
+
+        // Delegated, so links inside a region that gets re-rendered still work.
+        document.addEventListener('click', function (event) {
+            var link = event.target.closest ? event.target.closest('a[data-doc-view]') : null;
+
+            if (!link) {
+                return;
+            }
+
+            // Leave middle-click and ctrl/cmd-click to the browser: "open in a
+            // new tab" must keep working, which is why the page still exists.
+            if (event.defaultPrevented || event.button !== 0 ||
+                event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+                return;
+            }
+
+            var href = link.getAttribute('href');
+
+            if (!href) {
+                return;
+            }
+
+            event.preventDefault();
+            opener = link;
+            open(href, link.getAttribute('data-doc-label'));
+        });
+
+        dialog.addEventListener('click', function (event) {
+            if (event.target.closest && event.target.closest('[data-doc-close]')) {
+                close();
+                return;
+            }
+
+            // A click on the backdrop lands on the dialog element itself.
+            if (event.target === dialog) {
+                close();
+            }
+        });
+
+        // Escape fires this too, so one handler covers both ways out.
+        dialog.addEventListener('close', function () {
+            reset();
+
+            // Put focus back where it came from; otherwise it lands on <body>
+            // and a keyboard user loses their place in the table.
+            if (opener && document.contains(opener)) {
+                opener.focus();
+            }
+            opener = null;
+        });
+    });
+})();

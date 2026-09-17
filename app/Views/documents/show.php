@@ -27,6 +27,10 @@ $statusPill = [
     'Revised'   => 'status-pill-revised',
 ][$document['status']] ?? 'status-pill-pending';
 ?>
+<?php // data-doc-body marks what the modal lifts out of this page. The
+     // page stays a real, linkable screen — it is what a no-script
+     // browser gets, and what "open in a new tab" lands on. ?>
+<div data-doc-body>
 <section class="page-head">
     <div>
         <span class="badge"><?= $isSecretary ? 'Secretary' : 'Faculty' ?></span>
@@ -125,5 +129,6 @@ $statusPill = [
         </p>
     <?php endif; ?>
 </section>
+</div>
 
 <?php require __DIR__ . '/../partials/footer.php'; ?>

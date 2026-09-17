@@ -149,4 +149,18 @@ else
   pass ".docx render not applicable for this document (fallback in use)"
 fi
 
+# --- 7. the modal, and the page it falls back to ----------------------------
+# The modal lifts [data-doc-body] out of the very page a no-script browser
+# gets, so there is one rendering rather than two that can drift. These assert
+# both halves still exist: remove either and the feature quietly becomes a
+# blank box or a dead button.
+listing=$(curl -s -c "$SEC" -b "$SEC" "$BASE/admin/monitoring")
+
+assert_eq "the dialog is present on a listing screen" 1   "$(echo "$listing" | grep -c 'id="doc-modal"')"
+assert_eq "View links are marked for the modal" 1   "$(echo "$listing" | grep -c 'data-doc-view')"
+assert_eq "the viewer page exposes the region the modal lifts" 1   "$(curl -s -c "$SEC" -b "$SEC" "$BASE/documents/$FID" | grep -c 'data-doc-body')"
+# Still a real page: this is the no-script path and where "open in a new tab"
+# lands, so it must never become a fragment.
+assert_eq "the viewer page is still a full page" 1   "$(curl -s -c "$SEC" -b "$SEC" "$BASE/documents/$FID" | grep -c '<!doctype html>')"
+
 result_line

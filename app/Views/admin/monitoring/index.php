@@ -215,7 +215,7 @@ $today = date('Y-m-d');
                         </td>
                         <td class="table-actions">
                             <?php if ($row['file_id'] !== null): ?>
-                                <a href="<?= url('/documents/' . $row['file_id']) ?>" class="btn-sm btn-primary-sm">View</a>
+                                <a href="<?= url('/documents/' . $row['file_id']) ?>" class="btn-sm btn-primary-sm" data-doc-view>View</a>
                                 <a href="<?= url('/documents/' . $row['file_id'] . '/download') ?>" class="btn-sm btn-secondary">Download</a>
                             <?php else: ?>
                                 <span class="muted-note">&mdash;</span>
