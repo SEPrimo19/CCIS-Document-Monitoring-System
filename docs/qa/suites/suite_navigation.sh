@@ -370,4 +370,38 @@ else
 fi
 assert_eq "a filtered response still carries the region to swap" 1   "$(curl -s -c "$SEC" -b "$SEC" "$BASE/admin/monitoring?status=Approved" | grep -c 'data-live-region="submission-results"')"
 
+# --- Display scale ----------------------------------------------------------
+# All four live in the stylesheet, where nothing else would catch a regression:
+# the whole scale hangs off one root declaration, and the content column and the
+# seal are single numbers that are easy to "tidy" back to what they were.
+if echo "$css" | grep -qE '^html \{ font-size: [0-9.]+%; \}'; then
+  pass "the type scale is set once, on the root, as a percentage"
+else
+  fail "the root font-size declaration is gone — every rem in the file moved with it"
+fi
+
+# 900px is the measure for prose; these screens are 6-to-16-column tables.
+if echo "$css" | grep -A 12 '^\.wrap {' | grep -q 'max-width: 1240px'; then
+  pass "the content column is wide enough for the tables"
+else
+  fail "the content column is back to the prose measure"
+fi
+
+# ...but a 480px form centred in that column strands its own page title, so
+# form screens opt back out.
+if echo "$css" | grep -q '\.wrap:has(\.form-card):not(:has(\[data-doc-body\]))'; then
+  pass "form screens keep the narrower measure"
+else
+  fail "form screens no longer opt out of the wide column"
+fi
+
+# Both bars are fixed, so the top grid row is empty; with the default
+# align-content the shell shared its spare height between the rows and pushed
+# short pages down by ~150px of nothing.
+if echo "$css" | grep -A 20 '^\.app-shell-auth {' | grep -q 'align-content: start'; then
+  pass "a short page is not pushed down by the empty top row"
+else
+  fail "the shell distributes its spare height into the empty top row again"
+fi
+
 result_line

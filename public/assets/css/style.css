@@ -88,6 +88,19 @@
 
 * { box-sizing: border-box; }
 
+/* The whole scale hangs off this one number. Everything in the file is sized
+   in rem, so raising the root raises type, padding, gaps and the top bar
+   together and the proportions survive — which is why this is one declaration
+   rather than ninety edited font-sizes. At the old 16px the densest screens
+   ran to 12px table headings and 10px pills, which is under what anyone should
+   have to read across a desk at a defence. 17px is the smallest step that
+   fixes that without making the app feel like a large-print edition.
+
+   A percentage, not a px value: it scales the browser's own font setting
+   instead of overriding it, so a reader who has already chosen larger text
+   keeps their choice. */
+html { font-size: 106.25%; }
+
 body {
     margin: 0;
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -97,7 +110,16 @@ body {
 }
 
 .wrap {
-    max-width: 900px;
+    /* 900px is the readable measure for a column of prose. Almost nothing here
+       is prose: these screens are tables of 6 to 16 columns, and that cap made
+       them scroll sideways inside their own box while a third of a 1920px
+       screen sat empty beside them. Wide enough now for the widest table to
+       land whole, still capped so a large monitor does not stretch a row into
+       an unreadable line.
+
+       Forms are unaffected: .form-card keeps its own 480px and centres itself,
+       so the sign-in, profile and requirement screens look exactly as before. */
+    max-width: 1240px;
     margin: 0 auto;
     padding: 3rem 1.25rem;
 }
@@ -212,6 +234,14 @@ body {
         "sidebar topbar"
         "sidebar main";
     align-items: start;
+    /* Both bars are position:fixed, so neither is in flow and the "topbar" row
+       is empty. With the shell at min-height:100vh, the default align-content
+       (stretch) then shares the leftover height between the two auto rows —
+       which on any page shorter than the window silently pushed the content
+       down by half the free space: about 150px of nothing above the page
+       title on the faculty checklist. start keeps the spare height at the
+       bottom, where it belongs. */
+    align-content: start;
 }
 .app-shell-auth > .topbar { grid-area: topbar; }
 .app-shell-auth > .sidebar { grid-area: sidebar; }
@@ -1082,9 +1112,14 @@ body {
     box-shadow: var(--shadow);
 }
 
-.table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+/* A step above the global bump, because the table IS the content on most of
+   these screens — the surrounding chrome can afford to stay quieter than the
+   data it frames. */
+.table { width: 100%; border-collapse: collapse; font-size: .95rem; }
 .table th, .table td {
-    padding: .65rem .9rem;
+    /* Row height carries as much legibility as type size does: at the old
+       padding a dense table read as a solid block and the eye lost its row. */
+    padding: .8rem 1rem;
     text-align: left;
     border-bottom: 1px solid var(--border);
     white-space: nowrap;
@@ -1098,7 +1133,9 @@ body {
 }
 .table th:nth-child(2), .table td:nth-child(2) { white-space: normal; }
 .table thead th {
-    font-size: .75rem;
+    /* Uppercase and letter-spaced, which costs legibility at small sizes; it
+       needs the extra step more than the body rows do. */
+    font-size: .82rem;
     text-transform: uppercase;
     letter-spacing: .04em;
     color: var(--muted);
@@ -1818,8 +1855,8 @@ body {
        top bar and the page's own furniture, so the page fills the screen it
        has. The subtraction is deliberately a little conservative — better a
        short scroll than a frame that overhangs the window. */
-    height: calc(100vh - 17rem);
-    min-height: 30rem;
+    height: calc(100vh - 23rem);
+    min-height: 24rem;
     border: 0;
 }
 @media (max-width: 480px) {
@@ -1868,7 +1905,11 @@ body {
     left: 0;
     background-repeat: no-repeat;
     background-position: center;
-    background-size: min(52vmin, 460px);
+    /* Big enough to read as the college seal behind the page rather than a
+       small stamp in the middle of it. vmin so it scales off the SHORTER axis
+       and cannot overflow a short window; the px cap stops it from becoming a
+       texture on a large monitor. */
+    background-size: min(78vmin, 780px);
     opacity: var(--watermark-opacity);
     pointer-events: none;
     z-index: 0;
@@ -2319,7 +2360,22 @@ body {
     max-width: none;
     padding-left: 2rem;
     padding-right: 2rem;
+    /* Measured, not guessed: at the page's own 3rem the frame's bottom edge
+       fell about 70px below the fold on a 1080px screen. Everything above the
+       frame — top bar, title block, card heading, toolbar — comes to roughly
+       21rem, which is what the frame's height subtracts. */
+    padding-top: 1.75rem;
 }
+
+/* Form screens keep the old measure. A 480px card centres itself in whatever
+   column it is given, so in a 1240px one it drifted away from its own page
+   title, which stays left-aligned — the heading ended up stranded at the far
+   left of an empty band. Nothing is gained by the extra width there either: a
+   form is a single column of fields, not a table.
+
+   The viewer is excluded because it uses .form-card for the document itself,
+   and that is the one card that wants the whole screen. */
+.wrap:has(.form-card):not(:has([data-doc-body])) { max-width: 900px; }
 
 /* Full screen is hidden until app.js confirms the browser allows it — the API
    is refused outright in some embedded and iframed contexts, and a button that
