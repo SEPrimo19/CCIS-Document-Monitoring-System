@@ -8,6 +8,7 @@
  * @var string $ext
  * @var string $mode          pdf | html | text | download-only
  * @var string|null $html    rendered .docx markup, built entirely by DocxHtml
+ * @var int $pageCount        pages found, 1 when the document records none
  * @var string|null $text
  * @var string|null $textStatus
  * @var bool $truncated
@@ -91,7 +92,18 @@ $statusPill = [
               // here — which is why this is the one place in the application
               // that echoes without escaping. ?>
         <p class="muted-note doc-note">
-            Showing the document&rsquo;s contents, with its alignment, emphasis, tables and images. Page breaks, headers and footers are not reproduced &mdash;
+            <?php if ($pageCount > 1): ?>
+                <strong><?= (int) $pageCount ?> pages.</strong>
+                Split where Word recorded its page breaks, so these match the pages the author saw.
+            <?php else: ?>
+                <?php // A .docx does not store page boundaries; Word writes a hint at each
+                      // break only when it saves after laying the document out. A file
+                      // recovered from an autosave has none, and there is nothing to infer
+                      // them from — so say so rather than invent a page count. ?>
+                <strong>Shown as one continuous page.</strong>
+                This file does not record where its pages break, so they cannot be shown separately.
+            <?php endif; ?>
+            Headers, footers and exact spacing are not reproduced &mdash;
             <a href="<?= url('/documents/' . $document['file_id'] . '/download') ?>">download the file</a>
             to see it exactly as written.
             <?php if ($truncated): ?> This document is long, so only the beginning is shown.<?php endif; ?>

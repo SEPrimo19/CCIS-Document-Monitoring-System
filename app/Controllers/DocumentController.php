@@ -111,6 +111,7 @@ final class DocumentController extends Controller
         $mode = 'download-only';
         $text = null;
         $html = null;
+        $pageCount = 0;
         $textStatus = null;
         $truncated = false;
 
@@ -146,6 +147,7 @@ final class DocumentController extends Controller
                 if ($rendered['status'] === DocxHtml::OK) {
                     $mode = 'html';
                     $html = $rendered['html'];
+                    $pageCount = $rendered['pages'];
                 } else {
                     $extracted = DocxText::extract($absolutePath);
 
@@ -171,6 +173,7 @@ final class DocumentController extends Controller
             'mode'        => $mode,
             'text'        => $text,
             'html'        => $html,
+            'pageCount'   => $pageCount,
             'textStatus'  => $textStatus,
             'truncated'   => $truncated,
             'missing'     => $missing,

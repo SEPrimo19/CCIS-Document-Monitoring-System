@@ -1973,10 +1973,13 @@ body {
 .doc-render {
     max-height: 72vh;
     overflow-y: auto;
-    padding: 1.5rem 1.75rem;
+    /* The desk the sheets sit on, not the paper itself — the pages inside carry
+       the surface colour, and the gap between them is what makes the document
+       read as separate pages rather than one scroll. */
+    padding: 1.25rem;
     border: 1px solid var(--border);
     border-radius: 8px;
-    background: var(--surface);
+    background: var(--bg);
     font-size: .92rem;
     line-height: 1.7;
 }
@@ -2179,3 +2182,50 @@ body {
    without this a centred-and-indented paragraph drifts off centre. */
 .doc-render .dv-center.dv-indent,
 .doc-render .dv-right.dv-indent { text-indent: 0; }
+
+/* --- Pages (FR-41) ---------------------------------------------------------
+   Proportioned to A4 via min-height rather than a fixed height: the split
+   comes from Word's recorded break positions, not from measuring text, so a
+   page holds whatever fell on it and must be free to grow rather than clip. */
+.doc-render .dv-page {
+    position: relative;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    box-shadow: var(--shadow);
+    padding: 3rem 3.25rem 3.5rem;
+    margin: 0 auto 1.25rem;
+    max-width: 48rem;
+    min-height: 46rem;
+}
+.doc-render .dv-page:last-child { margin-bottom: 0; }
+
+.doc-render .dv-page-num {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 1rem;
+    margin: 0;
+    text-align: center;
+    font-size: .75rem;
+    color: var(--muted);
+}
+
+/* A single unpaginated page is not a page — drop the paper metaphor rather
+   than pretend a continuous scroll is one sheet. */
+.doc-render .dv-page:only-child {
+    min-height: 0;
+    box-shadow: none;
+    border: 0;
+    padding: 1rem 1.25rem;
+    max-width: none;
+}
+.doc-render .dv-page:only-child .dv-page-num { display: none; }
+
+@media (max-width: 640px) {
+    .doc-render { padding: .75rem; }
+    .doc-render .dv-page {
+        padding: 1.5rem 1.25rem 2.5rem;
+        min-height: 0;
+    }
+}

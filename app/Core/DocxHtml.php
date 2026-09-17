@@ -70,8 +70,12 @@ final class DocxHtml
 
     private int $fileId = 0;
 
+    /** Finished pages, and the blocks accumulating into the current one. */
+    private array $pages = [];
+    private string $current = '';
+
     /**
-     * @return array{status:string,html:string,truncated:bool}
+     * @return array{status:string,html:string,truncated:bool,pages:int}
      */
     public static function render(string $absolutePath, int $fileId): array
     {
@@ -104,11 +108,13 @@ final class DocxHtml
     }
 
     /**
-     * @return array{status:string,html:string,truncated:bool}
+     * @return array{status:string,html:string,truncated:bool,pages:int}
      */
     private function run(string $absolutePath): array
     {
-        $fail = static fn(string $s): array => ['status' => $s, 'html' => '', 'truncated' => false];
+        $fail = static fn(string $s): array => [
+            'status' => $s, 'html' => '', 'truncated' => false, 'pages' => 0,
+        ];
 
         if (!is_file($absolutePath) || !is_readable($absolutePath)) {
             return $fail(self::NOT_A_DOCX);
@@ -171,13 +177,33 @@ final class DocxHtml
             return $fail(self::NO_CONTENT);
         }
 
-        $html = $this->blocks($bodies->item(0));
+        $this->blocks($bodies->item(0));
+        $this->flushPage();
 
-        if (trim(strip_tags($html)) === '' && !str_contains($html, '<img')) {
+        if ($this->pages === []) {
             return $fail(self::NO_CONTENT);
         }
 
-        return ['status' => self::OK, 'html' => $html, 'truncated' => $this->truncated];
+        $html = '';
+
+        foreach ($this->pages as $i => $page) {
+            $html .= sprintf(
+                '<section class="dv-page" aria-label="Page %1$d of %2$d">'
+                . '<div class="dv-page-body">%3$s</div>'
+                . '<p class="dv-page-num">%1$d</p>'
+                . '</section>',
+                $i + 1,
+                count($this->pages),
+                $page
+            );
+        }
+
+        return [
+            'status' => self::OK,
+            'html' => $html,
+            'truncated' => $this->truncated,
+            'pages' => count($this->pages),
+        ];
     }
 
     /**
@@ -339,8 +365,51 @@ final class DocxHtml
         return null;
     }
 
+    /**
+     * Close the page being built and start the next.
+     *
+     * A .docx does NOT record where its pages end — Word computes that from
+     * font metrics and margins when it lays the document out. What it DOES
+     * leave behind, when it saves after rendering, is <w:lastRenderedPageBreak>
+     * at each break it calculated. Those hints plus author-inserted page breaks
+     * are what this splits on, so the pages line up with the ones the author
+     * saw in Word.
+     *
+     * A document Word has never laid out and saved — one recovered from an
+     * autosave, say — carries no hints at all, and there is nothing to infer
+     * them from without reimplementing Word's line breaker. Such a document
+     * renders as a single page, and the viewer says the page count is unknown
+     * rather than inventing one.
+     */
+    private function flushPage(): void
+    {
+        if (trim(strip_tags($this->current)) !== '' || str_contains($this->current, '<img')) {
+            $this->pages[] = $this->current;
+        }
+
+        $this->current = '';
+    }
+
+    /** Does this paragraph begin a new page? */
+    private static function startsNewPage(DOMElement $p): bool
+    {
+        foreach ($p->getElementsByTagNameNS(self::W_NS, 'lastRenderedPageBreak') as $ignored) {
+            return true;
+        }
+
+        foreach ($p->getElementsByTagNameNS(self::W_NS, 'br') as $br) {
+            /** @var DOMElement $br */
+            if (strtolower(self::val($br)) === 'page'
+                || strtolower($br->getAttributeNS(self::W_NS, 'type')) === 'page') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /** Render the block-level children of a container. */
-    private function blocks(?DOMNode $parent): string
+    private function blocks(?DOMNode $parent, bool $paginate = true): string
     {
         if ($parent === null) {
             return '';
@@ -359,14 +428,32 @@ final class DocxHtml
             }
 
             if ($node->localName === 'p') {
-                $out .= $this->paragraph($node);
+                // Only at the top level: a paragraph inside a table cell that
+                // happens to carry a break hint must not tear the table in two.
+                if ($paginate && self::startsNewPage($node)) {
+                    $this->flushPage();
+                }
+
+                $html = $this->paragraph($node);
+
+                if ($paginate) {
+                    $this->current .= $html;
+                } else {
+                    $out .= $html;
+                }
             } elseif ($node->localName === 'tbl') {
-                $out .= $this->table($node);
+                $html = $this->table($node);
+
+                if ($paginate) {
+                    $this->current .= $html;
+                } else {
+                    $out .= $html;
+                }
             } elseif ($node->localName === 'sdt') {
                 // A content control wraps real content in sdtContent.
                 foreach ($node->childNodes as $child) {
                     if ($child instanceof DOMElement && $child->localName === 'sdtContent') {
-                        $out .= $this->blocks($child);
+                        $out .= $this->blocks($child, $paginate);
                     }
                 }
             }
@@ -457,7 +544,7 @@ final class DocxHtml
                     continue;
                 }
 
-                $content = $this->blocks($tc);
+                $content = $this->blocks($tc, false);
                 $attr = $span > 1 ? ' colspan="' . $span . '"' : '';
                 $cells .= '<td' . $attr . '>' . ($content !== '' ? $content : '&nbsp;') . '</td>';
             }
