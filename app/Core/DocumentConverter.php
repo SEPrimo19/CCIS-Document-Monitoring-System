@@ -182,14 +182,27 @@ final class DocumentConverter
         // silently stop working the moment anyone opens LibreOffice normally.
         $profile = $work . DIRECTORY_SEPARATOR . 'profile';
 
-        $command = sprintf(
-            '%s --headless --norestore --nolockcheck --nodefault --nofirststartwizard '
-            . '-env:UserInstallation=file:///%s --convert-to pdf --outdir %s %s',
-            escapeshellarg((string) self::binary()),
-            str_replace('\\', '/', ltrim(str_replace(':', '|', $profile), '/')),
-            escapeshellarg($work),
-            escapeshellarg($sourcePath)
-        );
+        // An ARGUMENT ARRAY, not a command string. proc_open runs a string
+        // through cmd.exe on Windows, and both of this command's paths defeat
+        // that: they contain spaces, and the old `file:///C|/...` drive form
+        // put a `|` — a cmd PIPE — in the middle of an argument, so the shell
+        // tried to run part of the path as a program. The array form does not
+        // involve a shell, so no quoting, escaping or metacharacter can go
+        // wrong, on any platform.
+        $command = [
+            (string) self::binary(),
+            '--headless',
+            '--norestore',
+            '--nolockcheck',
+            '--nodefault',
+            '--nofirststartwizard',
+            '-env:UserInstallation=' . self::fileUrl($profile),
+            '--convert-to',
+            'pdf',
+            '--outdir',
+            $work,
+            $sourcePath,
+        ];
 
         $produced = null;
 
@@ -226,8 +239,12 @@ final class DocumentConverter
      * document LibreOffice cannot parse otherwise holds the request open until
      * PHP's own limit, and on a dev server that blocks every other request
      * because it is single-threaded.
+     *
+     * Takes an argument ARRAY. Passed a string, proc_open hands it to cmd.exe
+     * on Windows, where a path containing a space or a shell metacharacter is
+     * reinterpreted — which is exactly how the first version of this failed.
      */
-    private static function run(string $command): void
+    private static function run(array $command): void
     {
         $descriptors = [
             0 => ['pipe', 'r'],
@@ -270,9 +287,39 @@ final class DocumentConverter
         fclose($pipes[2]);
         proc_close($process);
 
-        if (trim($err) !== '') {
-            error_log('[CCIS-DMS] soffice: ' . substr(trim($err), 0, 500));
+        $err = trim($err);
+
+        // LibreOffice writes this to stderr on every run on this build and
+        // converts perfectly anyway. Logging it would train whoever reads the
+        // log to ignore soffice lines, which is precisely when a real failure
+        // gets missed.
+        if ($err !== '' && !str_contains($err, 'Could not find platform independent libraries')) {
+            error_log('[CCIS-DMS] soffice: ' . substr($err, 0, 500));
         }
+    }
+
+    /**
+     * A path as a file:// URL LibreOffice will actually accept.
+     *
+     * Every segment is percent-encoded, because this argument is parsed as a
+     * URL and a raw space in it makes LibreOffice fail SILENTLY: it runs for
+     * its full startup time, exits 0, prints nothing to stderr, and produces no
+     * file. Every signal says success except the missing PDF, which is why this
+     * cost a debugging pass rather than being obvious. The project path here
+     * contains spaces, so it is not a hypothetical — verified both ways:
+     * raw path produced 0 PDFs, encoded produced 1.
+     */
+    private static function fileUrl(string $path): string
+    {
+        $normalised = str_replace('\\', '/', $path);
+        $segments = array_map('rawurlencode', explode('/', $normalised));
+
+        // The drive letter's colon must stay a colon, not %3A.
+        if (isset($segments[0]) && preg_match('~^([A-Za-z])%3A$~', $segments[0], $m) === 1) {
+            $segments[0] = $m[1] . ':';
+        }
+
+        return 'file:///' . ltrim(implode('/', $segments), '/');
     }
 
     private static function rmTree(string $dir): void
