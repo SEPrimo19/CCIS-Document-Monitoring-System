@@ -474,3 +474,125 @@
         });
     });
 })();
+
+// Live regions: a filter form that refreshes its own results, not the page.
+//
+// Pair a form with a region by name — data-live-form="x" and
+// data-live-region="x". On submit this fetches the form's own action with its
+// own query string and swaps just that region, so the filters, the scroll
+// position and everything else on screen stay where they were.
+//
+// The form remains an ordinary GET form. With no script it reloads the page
+// exactly as before, every search stays bookmarkable, and pushState keeps the
+// URL in step so Back returns to the previous result set instead of leaving the
+// address bar describing something that is no longer on screen.
+//
+// It re-fetches the page and lifts the region out rather than calling a JSON
+// endpoint, so the server keeps ONE definition of that table. A partial
+// endpoint would be a second one to hold in step, and the two would drift.
+(function () {
+    'use strict';
+
+    if (!window.fetch || !window.DOMParser || !window.history || !history.pushState) {
+        return;
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        var forms = document.querySelectorAll('[data-live-form]');
+
+        if (forms.length === 0) {
+            return;
+        }
+
+        var inFlight = null;
+
+        function regionFor(name) {
+            return document.querySelector('[data-live-region="' + name + '"]');
+        }
+
+        function load(url, name, push) {
+            var region = regionFor(name);
+
+            if (!region) {
+                window.location.href = url;
+                return;
+            }
+
+            if (inFlight) {
+                inFlight.abort();
+            }
+
+            var controller = window.AbortController ? new AbortController() : null;
+            inFlight = controller;
+            region.setAttribute('aria-busy', 'true');
+
+            fetch(url, {
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'fetch' },
+                signal: controller ? controller.signal : undefined
+            }).then(function (response) {
+                if (!response.ok) {
+                    throw new Error('HTTP ' + response.status);
+                }
+                return response.text();
+            }).then(function (html) {
+                var parsed = new DOMParser().parseFromString(html, 'text/html');
+                var fresh = parsed.querySelector('[data-live-region="' + name + '"]');
+
+                // No region in the response means this was not the page we asked
+                // for — an expired session returning the login screen, most
+                // likely. Navigate properly rather than leave a stale table up.
+                if (!fresh) {
+                    window.location.href = url;
+                    return;
+                }
+
+                region.innerHTML = fresh.innerHTML;
+
+                if (push) {
+                    history.pushState({ live: name, url: url }, '', url);
+                }
+            }).catch(function (error) {
+                if (error && error.name === 'AbortError') {
+                    return;
+                }
+                // Offline, a 500, anything else: fall back to the navigation the
+                // form would have done, so Search is never a dead button.
+                window.location.href = url;
+            }).then(function () {
+                inFlight = null;
+                region.setAttribute('aria-busy', 'false');
+            });
+        }
+
+        for (var i = 0; i < forms.length; i++) {
+            (function (form) {
+                var name = form.getAttribute('data-live-form');
+
+                form.addEventListener('submit', function (event) {
+                    if (event.defaultPrevented || !regionFor(name)) {
+                        return;
+                    }
+
+                    event.preventDefault();
+
+                    // Built from the form itself, so it is exactly the URL an
+                    // unscripted submit would have produced.
+                    var query = new URLSearchParams(new FormData(form)).toString();
+                    var action = form.getAttribute('action') || window.location.pathname;
+                    var url = query === '' ? action : action + '?' + query;
+
+                    load(url, name, true);
+                });
+            }(forms[i]));
+        }
+
+        window.addEventListener('popstate', function (event) {
+            var state = event.state;
+
+            if (state && state.live && regionFor(state.live)) {
+                load(window.location.href, state.live, false);
+            }
+        });
+    });
+})();

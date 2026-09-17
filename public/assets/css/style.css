@@ -2286,3 +2286,11 @@ body {
     .doc-render [class*="dv-mt-"] { padding-top: 1.5rem; }
     .doc-render [class*="dv-mb-"] { padding-bottom: 2rem; }
 }
+
+/* A live region mid-fetch. Same restraint as the calendar: the swap is usually
+   too fast for a spinner, but with no cue at all a slow search looks like a
+   dead button. */
+[data-live-region][aria-busy="true"] {
+    opacity: .55;
+    transition: opacity .12s ease-in;
+}

@@ -137,7 +137,13 @@ $today = date('Y-m-d');
     <?php endif; ?>
 
     <h2 class="section-title">Submission Search</h2>
-    <form method="get" action="<?= url('/admin/monitoring') ?>" class="filter-form">
+    <?php // data-live-form pairs this form with the region below: app.js fetches
+          // this same URL and swaps only that region, so the filters and the
+          // scroll position stay put. It remains an ordinary GET form, so with
+          // no script it reloads the page as it always did and every search is
+          // still bookmarkable. ?>
+    <form method="get" action="<?= url('/admin/monitoring') ?>" class="filter-form"
+          data-live-form="submission-results">
         <div class="field">
             <label for="faculty_name">Faculty name</label>
             <input type="text" id="faculty_name" name="faculty_name" value="<?= htmlspecialchars($filters['faculty_name']) ?>" placeholder="Search by name">
@@ -167,6 +173,7 @@ $today = date('Y-m-d');
         <button type="submit" class="btn-sm btn-primary-sm">Search</button>
     </form>
 
+    <div data-live-region="submission-results">
     <div class="table-wrap">
         <table class="table">
             <thead>
@@ -225,6 +232,7 @@ $today = date('Y-m-d');
                 <?php endforeach; ?>
             </tbody>
         </table>
+    </div>
     </div>
 <?php endif; ?>
 <?php require __DIR__ . '/../../partials/footer.php'; ?>

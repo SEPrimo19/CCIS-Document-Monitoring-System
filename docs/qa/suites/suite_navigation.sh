@@ -346,4 +346,28 @@ assert_eq "content column is layered above the watermark" "1" "$(echo "$main_blo
 assert_eq "shell pads for the out-of-flow top bar" "1" \
   "$(echo "$css" | grep -c '\.app-shell-auth { padding-top: var(--topbar-h); }')"
 
+# --- Submission Search refreshes its table, not the page --------------------
+# The form and its results region are paired by name. If either the attribute or
+# the wrapper is lost the search silently goes back to reloading the whole page —
+# no error, just the behaviour quietly regressing.
+mon=$(curl -s -c "$SEC" -b "$SEC" "$BASE/admin/monitoring")
+assert_eq "search form is paired with a live region" 1   "$(echo "$mon" | grep -c 'data-live-form="submission-results"')"
+assert_eq "the results region it names exists" 1   "$(echo "$mon" | grep -c 'data-live-region="submission-results"')"
+# It must stay a plain GET form: that is the no-script path and what the fetch
+# itself requests.
+if echo "$mon" | grep -q 'method="get"[^>]*class="filter-form"'; then
+  pass "search remains an ordinary GET form"
+else
+  fail "search form is no longer a plain GET"
+fi
+# And the server must still filter, since the swap only re-renders what it sends.
+approved=$(curl -s -c "$SEC" -b "$SEC" "$BASE/admin/monitoring?status=Approved"   | sed -n '/data-live-region/,/<\/table>/p' | grep -c '<tr>')
+pending=$(curl -s -c "$SEC" -b "$SEC" "$BASE/admin/monitoring?status=Pending"   | sed -n '/data-live-region/,/<\/table>/p' | grep -c '<tr>')
+if [ "$approved" != "$pending" ]; then
+  pass "server-side status filter still narrows the results ($approved vs $pending)"
+else
+  fail "status filter returns the same rows for Approved and Pending"
+fi
+assert_eq "a filtered response still carries the region to swap" 1   "$(curl -s -c "$SEC" -b "$SEC" "$BASE/admin/monitoring?status=Approved" | grep -c 'data-live-region="submission-results"')"
+
 result_line
