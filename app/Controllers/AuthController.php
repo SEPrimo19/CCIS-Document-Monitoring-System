@@ -9,7 +9,7 @@ use App\Core\Controller;
 use App\Core\Csrf;
 use App\Core\LoginThrottle;
 use App\Models\AuditLog;
-use App\Models\LoginAttempt; 
+use App\Models\LoginAttempt;
 
 /**
  * Login / logout. Implements FR-1 (validate credentials, reject with a

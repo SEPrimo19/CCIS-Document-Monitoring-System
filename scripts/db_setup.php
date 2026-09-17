@@ -2,6 +2,11 @@
 
 declare(strict_types=1);
 
+/**
+ * Creates the CCIS-DMS database if it does not exist.
+ * Usage:  php scripts/db_setup.php
+ */
+
 require dirname(__DIR__) . '/config/env.php';
 $config = require dirname(__DIR__) . '/config/config.php';
 $db = $config['db'];
