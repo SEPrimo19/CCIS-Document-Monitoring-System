@@ -2017,7 +2017,10 @@ body {
    growing until it is taller than the window and unreachable at the bottom.
    The head is sticky within it so Close is always in reach. */
 .doc-modal {
-    width: min(920px, 94vw);
+    /* Wider than a form dialog would be: the content is a document, often with
+       wide tables, and 920px left them cramped while the dialog had room to
+       spare. Capped so the line length stays readable on a large monitor. */
+    width: min(1100px, 94vw);
     max-width: 94vw;
     height: min(88vh, 900px);
     padding: 0;
@@ -2072,6 +2075,12 @@ body {
 /* Inside the dialog the cards are already framed by it, so they drop their own
    frame rather than stacking a box inside a box. */
 .doc-modal-body .form-card {
+    /* max-width matters most here: .form-card is capped at 480px because it was
+       built for the sign-in and profile forms, and without resetting it the
+       document sat in a 480px column inside a 900px dialog with the rest empty.
+       A document is not a form and wants the whole width. */
+    max-width: none;
+    width: 100%;
     border: 0;
     box-shadow: none;
     padding: 0;
@@ -2115,3 +2124,14 @@ body {
     /* The title needs the room more than the label does on a phone. */
     .doc-modal-full { padding: .3rem .45rem; font-size: .8rem; }
 }
+
+/* The standalone viewer page has the same problem for the same reason: its
+   cards are .form-card, so the document was boxed into 480px of a 900px column.
+   Scoped to [data-doc-body], which exists only on that page. */
+[data-doc-body] .form-card {
+    max-width: none;
+    width: 100%;
+    margin-left: 0;
+    margin-right: 0;
+}
+[data-doc-body] .page-head { max-width: none; }
