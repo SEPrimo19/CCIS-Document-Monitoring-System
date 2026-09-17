@@ -42,10 +42,28 @@ final class DocumentConverter
     private static ?string $binary = null;
     private static bool $searched = false;
 
-    /** Is a converter installed on this machine? */
+    /**
+     * Can this server actually convert — not merely, is the binary on disk?
+     *
+     * proc_open is checked too because shared hosting very often disables it,
+     * and a host with LibreOffice installed but process execution switched off
+     * would otherwise look capable and fail on every document. That failure is
+     * the worst kind: the viewer would promise a PDF frame and the frame would
+     * come back empty, with nothing on screen saying why.
+     */
     public static function available(): bool
     {
-        return self::binary() !== null;
+        if (self::binary() === null) {
+            return false;
+        }
+
+        if (!function_exists('proc_open')) {
+            return false;
+        }
+
+        $disabled = array_map('trim', explode(',', (string) ini_get('disable_functions')));
+
+        return !in_array('proc_open', $disabled, true);
     }
 
     /**

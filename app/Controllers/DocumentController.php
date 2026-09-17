@@ -118,11 +118,19 @@ final class DocumentController extends Controller
             if ($ext === 'pdf' && $file['mime_type'] === 'application/pdf') {
                 $mode = 'pdf';
             } elseif (in_array($ext, DocumentConverter::CONVERTIBLE, true)
-                      && DocumentConverter::available()) {
+                      && DocumentConverter::available()
+                      && DocumentConverter::pdfFor($absolutePath, (int) $file['file_id']) !== null) {
                 // Converted to PDF and shown in the browser's own PDF viewer:
                 // pages, zoom and the real layout, which is what "view the
-                // document" actually means. The conversion happens once and is
-                // cached, so only the first open pays for it.
+                // document" actually means.
+                //
+                // The conversion is ATTEMPTED here rather than assumed from the
+                // binary being present, because the only thing worse than no
+                // preview is an empty frame: if the conversion fails at serve
+                // time the viewer has already committed to showing one, and the
+                // reader gets a blank box with no explanation. Doing it now
+                // costs the first open a few seconds and is cached after, and a
+                // failure falls through to the rendered contents below.
                 $mode = 'pdf';
             } elseif ($ext === 'docx') {
                 // Rendered as a document first — paragraphs, emphasis, tables

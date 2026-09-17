@@ -313,6 +313,49 @@ database *and* the `storage/uploads` directory.
 
 ---
 
+## 8b. Optional: in-app viewing of Word submissions
+
+The viewer shows a PDF submission as itself on any browser, with no server-side
+help. A **Word** submission has no native renderer in any browser, so the server
+converts it to PDF first — and that conversion happens **on the server**, not on
+the reader's machine.
+
+The practical consequence: **install LibreOffice on the server and every user
+gets the paginated PDF view**, on any device, with nothing installed at their
+end. Skip it and everyone falls back to the rendered-contents view instead —
+readable, in-app, but without pagination or exact page layout. No user is
+required to install anything either way.
+
+On Debian/Ubuntu, the Writer component alone is enough and much smaller than the
+full suite:
+
+```
+sudo apt-get install --no-install-recommends libreoffice-writer
+```
+
+The application finds `/usr/bin/soffice` on its own. Set `SOFFICE_PATH` in the
+environment only for an install somewhere unusual.
+
+Two things the web server user needs, and both fail quietly if missed:
+
+- **Write access to `storage/previews/`**, where converted PDFs are cached. Same
+  ownership as `storage/uploads/`.
+- **`proc_open` not disabled** in `php.ini`. Shared hosting disables it more
+  often than not. The application checks for this and falls back rather than
+  promising a preview it cannot produce, so the symptom is the fallback view
+  rather than an empty frame — but the conversion will simply never run.
+
+Verify after deploying: sign in, open a Word submission, and confirm it shows as
+a PDF with page controls. If it shows the rendered contents instead, check those
+two conditions before anything else.
+
+Conversions are cached under `storage/previews/` keyed by the source file's size
+and modification time, so each document converts once and a re-uploaded version
+gets its own entry. The directory is safe to clear at any time; the next view
+reconverts. Include it in backups only if you would rather not pay for the
+reconversion — nothing there is unrecoverable.
+
+
 ## 9. Logging
 
 `error_log` is the application's only log sink; it is where best-effort failures
