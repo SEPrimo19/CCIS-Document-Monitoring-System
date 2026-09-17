@@ -6,9 +6,11 @@ namespace App\Controllers;
 
 use App\Core\Auth;
 use App\Core\Controller;
+use App\Core\DocxHtml;
 use App\Core\DocxText;
 use App\Core\Guard;
 use App\Models\DocumentFile;
+use ZipArchive;
 
 /**
  * Access-controlled document download (supports FR-7/FR-8). Files are stored
@@ -107,6 +109,7 @@ final class DocumentController extends Controller
         $missing = !is_file($absolutePath);
         $mode = 'download-only';
         $text = null;
+        $html = null;
         $textStatus = null;
         $truncated = false;
 
@@ -114,13 +117,30 @@ final class DocumentController extends Controller
             if ($ext === 'pdf' && $file['mime_type'] === 'application/pdf') {
                 $mode = 'pdf';
             } elseif ($ext === 'docx') {
-                $extracted = DocxText::extract($absolutePath);
-                $textStatus = $extracted['status'];
-                $truncated = $extracted['truncated'];
+                // Rendered as a document first — paragraphs, emphasis, tables
+                // and images — because "view it in the app" means seeing the
+                // document, not a transcript of it. The plain-text extract is
+                // kept as the fallback for a file the renderer cannot make
+                // sense of, so an odd .docx still shows something readable
+                // rather than nothing.
+                $rendered = DocxHtml::render($absolutePath, (int) $file['file_id']);
+                $textStatus = $rendered['status'];
+                $truncated = $rendered['truncated'];
 
-                if ($extracted['status'] === DocxText::OK) {
-                    $mode = 'text';
-                    $text = $extracted['text'];
+                if ($rendered['status'] === DocxHtml::OK) {
+                    $mode = 'html';
+                    $html = $rendered['html'];
+                } else {
+                    $extracted = DocxText::extract($absolutePath);
+
+                    if ($extracted['status'] === DocxText::OK) {
+                        $mode = 'text';
+                        $text = $extracted['text'];
+                        $truncated = $extracted['truncated'];
+                        $textStatus = DocxText::OK;
+                    } else {
+                        $textStatus = $extracted['status'];
+                    }
                 }
             }
         }
@@ -134,6 +154,7 @@ final class DocumentController extends Controller
             'ext'         => $ext,
             'mode'        => $mode,
             'text'        => $text,
+            'html'        => $html,
             'textStatus'  => $textStatus,
             'truncated'   => $truncated,
             'missing'     => $missing,
@@ -221,6 +242,108 @@ final class DocumentController extends Controller
         header('Content-Disposition: inline; filename="' . $displayName . '"');
 
         readfile($absolutePath);
+        exit;
+    }
+
+    /**
+     * One image embedded in a .docx, for the rendered view (FR-41).
+     *
+     * The relationship id is NOT trusted as a path. It is looked up in the
+     * relationship map the document itself declares, and only entries under
+     * word/media/ are in that map, so a crafted id cannot address another entry
+     * in the archive or anything on disk. The bytes are then typed by INSPECTING
+     * them, never by their name, and anything that is not a real raster image is
+     * refused — so a file renamed to .png inside the package cannot be served
+     * back as one.
+     *
+     * Same ownership test as the rest of this controller, including 404 rather
+     * than 403, because this is one more route to the same document.
+     */
+    public function media(string $fileId, string $relId): void
+    {
+        Guard::requireAuth();
+
+        $file = DocumentFile::findWithOwner((int) $fileId);
+
+        if ($file === null) {
+            $this->notFoundPage();
+            return;
+        }
+
+        $user = Auth::user();
+        $role = $user['role_name'] ?? '';
+        $isOwningFaculty = $role === 'Faculty' && (int) $file['faculty_id'] === (int) ($user['user_id'] ?? 0);
+
+        if ($role !== 'Secretary' && !$isOwningFaculty) {
+            $this->notFoundPage();
+            return;
+        }
+
+        $absolutePath = dirname(__DIR__, 2) . '/storage/uploads/' . basename($file['file_path']);
+        $ext = strtolower(pathinfo((string) $file['file_name'], PATHINFO_EXTENSION));
+
+        if ($ext !== 'docx' || !is_file($absolutePath)) {
+            $this->notFoundPage();
+            return;
+        }
+
+        $map = DocxHtml::imageMap($absolutePath);
+        $entry = $map[$relId] ?? null;
+
+        if ($entry === null) {
+            $this->notFoundPage();
+            return;
+        }
+
+        $zip = new ZipArchive();
+
+        if ($zip->open($absolutePath) !== true) {
+            $this->notFoundPage();
+            return;
+        }
+
+        try {
+            $stat = $zip->statName($entry);
+
+            // 8 MB is far more than a document illustration needs and well under
+            // anything that would trouble memory.
+            if ($stat === false || (int) ($stat['size'] ?? 0) > 8 * 1024 * 1024) {
+                $this->notFoundPage();
+                return;
+            }
+
+            $bytes = $zip->getFromName($entry);
+        } finally {
+            $zip->close();
+        }
+
+        if (!is_string($bytes) || $bytes === '') {
+            $this->notFoundPage();
+            return;
+        }
+
+        $info = @getimagesizefromstring($bytes);
+        $type = is_array($info) ? ($info[2] ?? null) : null;
+
+        $servable = [
+            IMAGETYPE_JPEG => 'image/jpeg',
+            IMAGETYPE_PNG  => 'image/png',
+            IMAGETYPE_GIF  => 'image/gif',
+            IMAGETYPE_WEBP => 'image/webp',
+            IMAGETYPE_BMP  => 'image/bmp',
+        ];
+
+        if (!is_int($type) || !isset($servable[$type])) {
+            $this->notFoundPage();
+            return;
+        }
+
+        header('Content-Type: ' . $servable[$type]);
+        header('Content-Length: ' . (string) strlen($bytes));
+        header('Content-Disposition: inline');
+        header('Cache-Control: private, max-age=300');
+
+        echo $bytes;
         exit;
     }
 

@@ -43,7 +43,7 @@ assert_eq "non-existent and forbidden answer alike" \
 # --- 2. the viewer renders something honest ---------------------------------
 body=$(curl -s -c "$SEC" -b "$SEC" "$BASE/documents/$FID")
 
-if echo "$body" | grep -q 'class="doc-text"\|class="doc-frame"\|Preview not available'; then
+if echo "$body" | grep -q 'class="doc-render"\|class="doc-text"\|class="doc-frame"\|Preview not available'; then
   pass "viewer shows a preview or says plainly that it cannot"
 else
   fail "viewer shows neither a preview nor an explanation"
@@ -58,8 +58,14 @@ if echo "$body" | grep -q 'class="doc-text"'; then
   fi
 fi
 
-assert_eq "viewer offers the original for download" 1 \
-  "$(echo "$body" | grep -c "documents/$FID/download")"
+# At least one, not exactly one: the header carries a Download button and
+# the rendered view repeats the offer in its "not the page layout" note.
+dl=$(echo "$body" | grep -c "documents/$FID/download")
+if [ "$dl" -ge 1 ]; then
+  pass "viewer offers the original for download ($dl link(s))"
+else
+  fail "viewer does not offer the original for download"
+fi
 
 # Extracted document text is escaped by the view, so nothing inside a
 # user-supplied file can become markup on our page.
@@ -104,5 +110,43 @@ for path in /admin/monitoring /archive/1 "/submissions/7"; do
 done
 assert_eq "faculty checklist links to the viewer" 1 \
   "$(curl -s -c "$F1" -b "$F1" "$BASE/faculty/requirements" | grep -cE 'href="/documents/[0-9]+"')"
+
+# --- 6. rendered .docx and its embedded images ------------------------------
+# The renderer builds every tag itself and escapes the document's text, so a
+# .docx cannot inject markup. These assert the output IS a render (tables and
+# emphasis survive) rather than a transcript, and that the image route cannot
+# be talked into serving anything but a declared image.
+render=$(curl -s -c "$SEC" -b "$SEC" "$BASE/documents/$FID")
+
+if echo "$render" | grep -q 'class="doc-render"'; then
+  pass ".docx renders as a document, not a text transcript"
+
+  assert_eq "the render says page layout is not reproduced" 1     "$(echo "$render" | grep -c 'Page layout, headers and footers are not reproduced')"
+
+  # A <script> reaching the page from document content would mean the escaping
+  # failed; there must still be exactly one (the app.js include).
+  assert_eq "rendered document adds no <script> tag" 1     "$(echo "$render" | grep -c '<script')"
+
+  rid=$(echo "$render" | grep -oE '/documents/[0-9]+/media/[A-Za-z0-9]+' | head -1)
+
+  if [ -n "$rid" ]; then
+    assert_eq "an embedded image is served" 200 "$(http_code "$SEC" "$BASE$rid")"
+    ctype=$(curl -s -o /dev/null -w '%{content_type}' -c "$SEC" -b "$SEC" "$BASE$rid")
+    case "$ctype" in
+      image/*) pass "embedded image is served as an image type ($ctype)" ;;
+      *) fail "embedded image served as $ctype" ;;
+    esac
+    assert_eq "another faculty cannot fetch the image" 404 "$(http_code "$F2" "$BASE$rid")"
+    assert_eq "anonymous cannot fetch the image" 302 "$(http_code "$QA/dv_anon2.jar" "$BASE$rid")"
+  fi
+
+  # The relationship id is looked up in the document's own map, so none of
+  # these can address another entry in the archive or anything on disk.
+  for crafted in rId999 word/document.xml ..%2F..%2F.env; do
+    assert_eq "crafted media id refused: $crafted" 404       "$(http_code "$SEC" "$BASE/documents/$FID/media/$crafted")"
+  done
+else
+  pass ".docx render not applicable for this document (fallback in use)"
+fi
 
 result_line

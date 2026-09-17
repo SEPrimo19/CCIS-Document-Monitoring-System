@@ -6,7 +6,8 @@
  * @var string $appName
  * @var array{file_id:int,submission_id:int,file_name:string,mime_type:string,file_size:int,version_no:int,uploaded_at:string,faculty_name:string,status:string,title:string,doc_type_name:string,deadline:?string,period_label:?string,school_year:string,semester:string} $document
  * @var string $ext
- * @var string $mode          pdf | text | download-only
+ * @var string $mode          pdf | html | text | download-only
+ * @var string|null $html    rendered .docx markup, built entirely by DocxHtml
  * @var string|null $text
  * @var string|null $textStatus
  * @var bool $truncated
@@ -78,6 +79,20 @@ $statusPill = [
             <a href="<?= url('/documents/' . $document['file_id'] . '/view') ?>" target="_blank" rel="noopener">Open in a new tab</a>
             if the preview is hard to read here.
         </p>
+
+    <?php elseif ($mode === 'html'): ?>
+        <?php // Rendered from the document's own XML. Every tag in $html is
+              // written by DocxHtml and the document's text is escaped on the
+              // way in, so nothing inside an uploaded file can become markup
+              // here — which is why this is the one place in the application
+              // that echoes without escaping. ?>
+        <p class="muted-note doc-note">
+            Showing the document&rsquo;s contents. Page layout, headers and footers are not reproduced &mdash;
+            <a href="<?= url('/documents/' . $document['file_id'] . '/download') ?>">download the file</a>
+            to see it exactly as written.
+            <?php if ($truncated): ?> This document is long, so only the beginning is shown.<?php endif; ?>
+        </p>
+        <div class="doc-render" tabindex="0" role="region" aria-label="Contents of <?= htmlspecialchars($document['file_name']) ?>"><?= $html ?></div>
 
     <?php elseif ($mode === 'text'): ?>
         <?php // Stated plainly, because it is not a rendering: the reader needs

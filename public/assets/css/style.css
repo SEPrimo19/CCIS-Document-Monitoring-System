@@ -1950,3 +1950,63 @@ body {
 @media (max-width: 480px) {
     .doc-text { max-height: 50vh; font-size: .85rem; }
 }
+
+/* --- Rendered .docx (FR-41) -----------------------------------------------
+   A reading surface, not a replica of a Word page: the goal is that a reviewer
+   can read the document and judge it, so the type is comfortable and the
+   structure (headings, emphasis, tables, images) survives. Page geometry does
+   not, and the note above the render says so. Tokens throughout, so it follows
+   the dark theme. */
+.doc-render {
+    max-height: 72vh;
+    overflow-y: auto;
+    padding: 1.5rem 1.75rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    font-size: .92rem;
+    line-height: 1.7;
+}
+.doc-render:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.doc-note { margin-bottom: .75rem; }
+
+.doc-render .dv-p { margin: 0 0 .7rem; }
+.doc-render .dv-li { padding-left: 1.5rem; position: relative; }
+.doc-render .dv-li::before { content: "•"; position: absolute; left: .5rem; color: var(--muted); }
+.doc-render .dv-h,
+.doc-render .dv-title {
+    margin: 1.4rem 0 .6rem;
+    line-height: 1.3;
+}
+.doc-render .dv-title { font-size: 1.25rem; }
+.doc-render h3.dv-h { font-size: 1.15rem; }
+.doc-render h4.dv-h { font-size: 1.05rem; }
+.doc-render h5.dv-h,
+.doc-render h6.dv-h { font-size: .95rem; }
+.doc-render .dv-link { color: var(--brand); text-decoration: underline; }
+.doc-render .dv-tab { display: inline-block; width: 2em; }
+
+/* Its own scroll container: a wide Word table must not drag the page sideways. */
+.doc-render .dv-table-wrap { overflow-x: auto; margin: 0 0 1rem; }
+.doc-render .dv-table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: .85rem;
+}
+.doc-render .dv-table td {
+    border: 1px solid var(--border);
+    padding: .4rem .55rem;
+    vertical-align: top;
+}
+.doc-render .dv-table .dv-p:last-child { margin-bottom: 0; }
+
+.doc-render .dv-img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: .75rem 0;
+}
+
+@media (max-width: 480px) {
+    .doc-render { padding: 1rem; max-height: 60vh; font-size: .88rem; }
+}

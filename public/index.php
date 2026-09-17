@@ -177,6 +177,9 @@ $router->get('/documents/{id}/download', [DocumentController::class, 'download']
 // see DocumentController::view() for why, and for the framing headers it
 // relaxes on this response alone.
 $router->get('/documents/{id}/view', [DocumentController::class, 'preview']);
+// Images embedded in a rendered .docx. The second segment is a relationship
+// id declared by the document itself, not a path — see DocumentController::media().
+$router->get('/documents/{id}/media/{rid}', [DocumentController::class, 'media']);
 $router->get('/submissions/{id}', [SubmissionController::class, 'show']);
 
 // Any authenticated role may browse the archive; what they SEE is scoped by
