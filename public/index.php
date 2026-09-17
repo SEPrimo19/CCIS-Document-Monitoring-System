@@ -89,6 +89,13 @@ use App\Core\Router;
 
 /* --- Baseline security headers (mirrored in public/.htaccess for Apache's
  * own static responses; these cover every PHP-generated response). --- */
+// PHP advertises its exact version in X-Powered-By unless told not to, which
+// hands an attacker the CVE list to start from before they have probed
+// anything. expose_php=Off in php.ini is the other half of this; the header is
+// removed here too so the posture does not depend on a server the deployment
+// may not control.
+header_remove('X-Powered-By');
+
 header('X-Content-Type-Options: nosniff');
 header('X-Frame-Options: DENY');
 header('Referrer-Policy: no-referrer');

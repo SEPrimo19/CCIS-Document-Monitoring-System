@@ -351,7 +351,16 @@ final class FacultyController extends Controller
         }
 
         $size = (int) ($file['size'] ?? 0);
-        if ($size <= 0 || $size > self::MAX_UPLOAD_BYTES) {
+
+        // Separate messages: a 0-byte file used to be told it was over the 10 MB
+        // limit, which sends someone off to shrink a document that is already
+        // empty. The avatar validator has always said this correctly; the two
+        // now agree.
+        if ($size <= 0) {
+            return [$empty, 'That file is empty. Choose a document with content in it.'];
+        }
+
+        if ($size > self::MAX_UPLOAD_BYTES) {
             return [$empty, 'File exceeds the 10 MB limit.'];
         }
 
