@@ -2193,10 +2193,12 @@ body {
     border: 1px solid var(--border);
     border-radius: 2px;
     box-shadow: var(--shadow);
-    padding: 3rem 3.25rem 3.5rem;
     margin: 0 auto 1.25rem;
-    max-width: 48rem;
-    min-height: 46rem;
+    /* Width and padding come from the paper and margin classes below, which the
+       renderer derives from the document's own w:sectPr. CSS inches are a real
+       unit (96px), so a Letter page is drawn at the size it would print. */
+    box-sizing: border-box;
+    max-width: 100%;
 }
 .doc-render .dv-page:last-child { margin-bottom: 0; }
 
@@ -2228,4 +2230,59 @@ body {
         padding: 1.5rem 1.25rem 2.5rem;
         min-height: 0;
     }
+}
+
+/* --- Paper (FR-41) ---------------------------------------------------------
+   Sizes as declared in the document, not assumed. min-height rather than
+   height: the page split comes from Word's recorded break positions, and this
+   renderer's line heights are not Word's, so a page must be free to grow
+   rather than clip its own content. Content therefore never disappears; a page
+   may simply run a little longer than it does in Word. */
+.doc-render .dv-paper-letter { width: 8.5in; min-height: 11in; }
+.doc-render .dv-paper-a4     { width: 8.268in; min-height: 11.693in; }
+.doc-render .dv-paper-legal  { width: 8.5in; min-height: 14in; }
+.doc-render .dv-paper-a5     { width: 5.83in; min-height: 8.27in; }
+.doc-render .dv-paper-b5     { width: 6.93in; min-height: 9.84in; }
+
+.doc-render .dv-paper-letter.dv-landscape { width: 11in; min-height: 8.5in; }
+.doc-render .dv-paper-a4.dv-landscape     { width: 11.693in; min-height: 8.268in; }
+.doc-render .dv-paper-legal.dv-landscape  { width: 14in; min-height: 8.5in; }
+.doc-render .dv-paper-a5.dv-landscape     { width: 8.27in; min-height: 5.83in; }
+.doc-render .dv-paper-b5.dv-landscape     { width: 9.84in; min-height: 6.93in; }
+
+/* Margins in quarter-inch steps, one class per side, as the document sets them.
+   The 1.5in left on both of this college's submissions is a binding margin —
+   visibly not the 1in default, and exactly the kind of thing a fixed padding
+   would have thrown away. */
+.doc-render .dv-mt-1 { padding-top: .25in; }  .doc-render .dv-mb-1 { padding-bottom: .25in; }
+.doc-render .dv-mt-2 { padding-top: .5in; }   .doc-render .dv-mb-2 { padding-bottom: .5in; }
+.doc-render .dv-mt-3 { padding-top: .75in; }  .doc-render .dv-mb-3 { padding-bottom: .75in; }
+.doc-render .dv-mt-4 { padding-top: 1in; }    .doc-render .dv-mb-4 { padding-bottom: 1in; }
+.doc-render .dv-mt-5 { padding-top: 1.25in; } .doc-render .dv-mb-5 { padding-bottom: 1.25in; }
+.doc-render .dv-mt-6 { padding-top: 1.5in; }  .doc-render .dv-mb-6 { padding-bottom: 1.5in; }
+.doc-render .dv-mt-7 { padding-top: 1.75in; } .doc-render .dv-mb-7 { padding-bottom: 1.75in; }
+.doc-render .dv-mt-8 { padding-top: 2in; }    .doc-render .dv-mb-8 { padding-bottom: 2in; }
+
+.doc-render .dv-ml-1 { padding-left: .25in; }  .doc-render .dv-mr-1 { padding-right: .25in; }
+.doc-render .dv-ml-2 { padding-left: .5in; }   .doc-render .dv-mr-2 { padding-right: .5in; }
+.doc-render .dv-ml-3 { padding-left: .75in; }  .doc-render .dv-mr-3 { padding-right: .75in; }
+.doc-render .dv-ml-4 { padding-left: 1in; }    .doc-render .dv-mr-4 { padding-right: 1in; }
+.doc-render .dv-ml-5 { padding-left: 1.25in; } .doc-render .dv-mr-5 { padding-right: 1.25in; }
+.doc-render .dv-ml-6 { padding-left: 1.5in; }  .doc-render .dv-mr-6 { padding-right: 1.5in; }
+.doc-render .dv-ml-7 { padding-left: 1.75in; } .doc-render .dv-mr-7 { padding-right: 1.75in; }
+.doc-render .dv-ml-8 { padding-left: 2in; }    .doc-render .dv-mr-8 { padding-right: 2in; }
+
+/* A page wider than the screen would otherwise scroll the whole viewer
+   sideways. Below the width of a sheet the paper stops being literal: it keeps
+   its proportions loosely but fits the screen, because an unreadable accurate
+   page is worth less than a readable approximate one. */
+@media (max-width: 900px) {
+    .doc-render [class*="dv-paper-"] {
+        width: 100%;
+        min-height: 0;
+    }
+    .doc-render [class*="dv-ml-"] { padding-left: 1.25rem; }
+    .doc-render [class*="dv-mr-"] { padding-right: 1.25rem; }
+    .doc-render [class*="dv-mt-"] { padding-top: 1.5rem; }
+    .doc-render [class*="dv-mb-"] { padding-bottom: 2rem; }
 }

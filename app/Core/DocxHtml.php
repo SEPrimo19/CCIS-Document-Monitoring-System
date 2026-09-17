@@ -74,6 +74,9 @@ final class DocxHtml
     private array $pages = [];
     private string $current = '';
 
+    /** Classes describing the paper this document declares. */
+    private string $paperClass = ' dv-paper-letter';
+
     /**
      * @return array{status:string,html:string,truncated:bool,pages:int}
      */
@@ -177,6 +180,7 @@ final class DocxHtml
             return $fail(self::NO_CONTENT);
         }
 
+        $this->readPaper($bodies->item(0));
         $this->blocks($bodies->item(0));
         $this->flushPage();
 
@@ -188,13 +192,14 @@ final class DocxHtml
 
         foreach ($this->pages as $i => $page) {
             $html .= sprintf(
-                '<section class="dv-page" aria-label="Page %1$d of %2$d">'
+                '<section class="dv-page%4$s" aria-label="Page %1$d of %2$d">'
                 . '<div class="dv-page-body">%3$s</div>'
                 . '<p class="dv-page-num">%1$d</p>'
                 . '</section>',
                 $i + 1,
                 count($this->pages),
-                $page
+                $page,
+                $this->paperClass
             );
         }
 
@@ -363,6 +368,103 @@ final class DocxHtml
         }
 
         return null;
+    }
+
+    /**
+     * Turn the document's own page setup into classes.
+     *
+     * `w:sectPr` carries the real paper size and margins in twips (1/1440 in),
+     * so the pages can be drawn at the size the author actually set rather than
+     * at an assumed one. Both of this college's submissions are US Letter with
+     * a 1.5in left binding margin — a thesis layout, and visibly not the 1in
+     * default a guess would have produced.
+     *
+     * Classes, not inline style, because the CSP forbids `style=` and blocks an
+     * inline <style> block too. So the size is matched against the standard
+     * papers, and each margin is quantised to a quarter-inch step. Quarter-inch
+     * granularity is finer than the eye resolves at this scale and keeps the
+     * class list small; anything unrecognised falls back to Letter, which is
+     * what every document here uses.
+     */
+    private function readPaper(DOMNode $body): void
+    {
+        $sect = null;
+
+        foreach ($body->childNodes as $node) {
+            if ($node instanceof DOMElement && $node->localName === 'sectPr') {
+                $sect = $node;
+            }
+        }
+
+        if ($sect === null) {
+            return;
+        }
+
+        $classes = [];
+        $pgSz = self::child($sect, 'pgSz');
+
+        if ($pgSz !== null) {
+            $w = (int) ($pgSz->getAttributeNS(self::W_NS, 'w') ?: $pgSz->getAttribute('w:w'));
+            $h = (int) ($pgSz->getAttributeNS(self::W_NS, 'h') ?: $pgSz->getAttribute('w:h'));
+            $orient = strtolower($pgSz->getAttributeNS(self::W_NS, 'orient')
+                ?: $pgSz->getAttribute('w:orient'));
+
+            // Compare on the portrait pair so a landscape page matches the same
+            // paper rather than falling through to the default.
+            $short = min($w, $h);
+            $long = max($w, $h);
+
+            $papers = [
+                'letter' => [12240, 15840],
+                'a4'     => [11906, 16838],
+                'legal'  => [12240, 20160],
+                'a5'     => [8419, 11906],
+                'b5'     => [9979, 14175],
+            ];
+
+            $name = 'letter';
+
+            foreach ($papers as $candidate => [$cw, $ch]) {
+                // 120 twips is a twelfth of an inch: enough slack for the
+                // rounding different editors apply, far short of another size.
+                if (abs($short - $cw) <= 120 && abs($long - $ch) <= 120) {
+                    $name = $candidate;
+                    break;
+                }
+            }
+
+            $classes[] = 'dv-paper-' . $name;
+
+            if ($orient === 'landscape' || ($w > $h && $w > 0)) {
+                $classes[] = 'dv-landscape';
+            }
+        } else {
+            $classes[] = 'dv-paper-letter';
+        }
+
+        $pgMar = self::child($sect, 'pgMar');
+
+        if ($pgMar !== null) {
+            $sides = ['top' => 'mt', 'right' => 'mr', 'bottom' => 'mb', 'left' => 'ml'];
+
+            foreach ($sides as $attr => $prefix) {
+                $twips = (int) ($pgMar->getAttributeNS(self::W_NS, $attr)
+                    ?: $pgMar->getAttribute('w:' . $attr));
+
+                if ($twips <= 0) {
+                    continue;
+                }
+
+                // Quarter-inch steps, capped at two inches.
+                $step = min(8, (int) round($twips / 360));
+
+                if ($step > 0) {
+                    $classes[] = 'dv-' . $prefix . '-' . $step;
+                }
+            }
+        }
+
+        $this->paperClass = $classes === [] ? '' : ' ' . implode(' ', $classes);
     }
 
     /**
