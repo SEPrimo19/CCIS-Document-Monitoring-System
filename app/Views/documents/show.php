@@ -91,7 +91,7 @@ $statusPill = [
               // here — which is why this is the one place in the application
               // that echoes without escaping. ?>
         <p class="muted-note doc-note">
-            Showing the document&rsquo;s contents. Page layout, headers and footers are not reproduced &mdash;
+            Showing the document&rsquo;s contents, with its alignment, emphasis, tables and images. Page breaks, headers and footers are not reproduced &mdash;
             <a href="<?= url('/documents/' . $document['file_id'] . '/download') ?>">download the file</a>
             to see it exactly as written.
             <?php if ($truncated): ?> This document is long, so only the beginning is shown.<?php endif; ?>

@@ -21,14 +21,17 @@ use ZipArchive;
  * library, and the project's locked stack is vanilla JavaScript. So the
  * document is rendered here, from its own XML.
  *
- * WHAT IT RENDERS: paragraphs and heading levels, bold / italic / underline,
- * tables including merged cells and nesting, and embedded images. That covers
- * what this college's paperwork actually contains — syllabi, tables of
- * specification and teaching loads are mostly text and tables.
+ * WHAT IT RENDERS: paragraphs with their alignment (centred, justified,
+ * right) and first-line / left indents, heading levels, bold / italic /
+ * underline, text colour and highlighting, tables including merged cells and
+ * nesting, and embedded images. Alignment matters more than it sounds: a
+ * chapter heading that Word centres reads as body text when it is flushed
+ * left, and the document stops looking like itself.
  *
- * WHAT IT DOES NOT: page geometry, columns, headers and footers, exact fonts
- * and spacing. It is a faithful reading of the CONTENT, not a pixel copy of the
- * page, and the screen says so. The original is always one click away.
+ * WHAT IT DOES NOT: page geometry, columns, page breaks, headers and footers,
+ * and exact fonts, sizes and line spacing. It is a faithful reading of the
+ * CONTENT, not a pixel copy of the page, and the screen says so. Install
+ * LibreOffice (DocumentConverter) and the reader gets the real page instead.
  *
  * SAFETY. The .docx is user-supplied, so:
  *  - Only word/document.xml and the relationship file are parsed; nothing is
@@ -217,6 +220,125 @@ final class DocxHtml
         return $map;
     }
 
+    /**
+     * A direct child element by local name, or null.
+     *
+     * Direct, not getElementsByTagNameNS: a paragraph can CONTAIN a nested
+     * table, and a descendant search would happily return the inner
+     * paragraph's properties and apply them to the outer one.
+     */
+    private static function child(DOMElement $el, string $localName): ?DOMElement
+    {
+        foreach ($el->childNodes as $node) {
+            if ($node instanceof DOMElement && $node->localName === $localName) {
+                return $node;
+            }
+        }
+
+        return null;
+    }
+
+    /** A `w:val` attribute, with or without the namespace prefix resolved. */
+    private static function val(DOMElement $el): string
+    {
+        $v = $el->getAttributeNS(self::W_NS, 'val');
+
+        return $v !== '' ? $v : $el->getAttribute('w:val');
+    }
+
+    /**
+     * Paragraph-level classes: alignment and indentation.
+     *
+     * Classes, never an inline style — the CSP forbids `style=` outright, so
+     * every visual property has to be expressible as a fixed class name. That
+     * rules out carrying arbitrary measurements through, which is why the
+     * indent is quantised rather than reproduced exactly.
+     */
+    private static function paragraphClasses(DOMElement $p): string
+    {
+        $classes = [];
+        $pPr = self::child($p, 'pPr');
+
+        if ($pPr === null) {
+            return '';
+        }
+
+        $jc = self::child($pPr, 'jc');
+
+        if ($jc !== null) {
+            $align = strtolower(self::val($jc));
+
+            if ($align === 'center') {
+                $classes[] = 'dv-center';
+            } elseif ($align === 'both' || $align === 'distribute') {
+                $classes[] = 'dv-justify';
+            } elseif ($align === 'right' || $align === 'end') {
+                $classes[] = 'dv-right';
+            }
+        }
+
+        $ind = self::child($pPr, 'ind');
+
+        if ($ind !== null) {
+            $first = (int) ($ind->getAttributeNS(self::W_NS, 'firstLine')
+                ?: $ind->getAttribute('w:firstLine'));
+
+            if ($first > 0) {
+                $classes[] = 'dv-indent';
+            }
+
+            // 720 twips is half an inch, Word's default tab. Quantised into
+            // four steps because a class cannot carry an arbitrary measure.
+            $left = (int) ($ind->getAttributeNS(self::W_NS, 'left')
+                ?: $ind->getAttribute('w:left'));
+
+            if ($left > 0) {
+                $classes[] = 'dv-pad-' . min(4, (int) ceil($left / 720));
+            }
+        }
+
+        return $classes === [] ? '' : ' ' . implode(' ', $classes);
+    }
+
+    /**
+     * Run colour, reduced to a named class.
+     *
+     * A document can use any of 16 million colours and the CSP allows none of
+     * them through as an inline style, so the hue is mapped to a small fixed
+     * set. Anything not clearly one of these — including black and `auto` —
+     * inherits the page's own text colour, which is also what keeps the render
+     * readable in the dark theme.
+     */
+    private static function colourClass(string $hex): ?string
+    {
+        if (strlen($hex) !== 6 || !ctype_xdigit($hex)) {
+            return null;
+        }
+
+        $r = hexdec(substr($hex, 0, 2));
+        $g = hexdec(substr($hex, 2, 2));
+        $b = hexdec(substr($hex, 4, 2));
+        $max = max($r, $g, $b);
+        $min = min($r, $g, $b);
+
+        // Near-grey: leave it to inherit rather than fighting the theme.
+        if ($max - $min < 40) {
+            return null;
+        }
+
+        if ($r === $max && $r - max($g, $b) > 40) {
+            return 'dv-red';
+        }
+        if ($b === $max && $b - max($r, $g) > 40) {
+            return 'dv-blue';
+        }
+        if ($g === $max && $g - max($r, $b) > 40) {
+            return 'dv-green';
+        }
+
+        return null;
+    }
+
     /** Render the block-level children of a container. */
     private function blocks(?DOMNode $parent): string
     {
@@ -275,15 +397,17 @@ final class DocxHtml
         if (preg_match('~^heading([1-9])~', $style, $m) === 1) {
             $level = min(6, 2 + (int) $m[1]);
 
-            return sprintf('<h%d class="dv-h">%s</h%d>', $level, $inner, $level);
+            return sprintf('<h%d class="dv-h%s">%s</h%d>', $level, self::paragraphClasses($p), $inner, $level);
         }
 
         if ($style === 'title') {
             return '<h3 class="dv-title">' . $inner . '</h3>';
         }
 
-        $isList = $p->getElementsByTagNameNS(self::W_NS, 'numPr')->length > 0;
-        $class = $isList ? 'dv-p dv-li' : 'dv-p';
+        $isList = self::child($p, 'pPr') !== null
+            && self::child(self::child($p, 'pPr'), 'numPr') !== null;
+
+        $class = ($isList ? 'dv-p dv-li' : 'dv-p') . self::paragraphClasses($p);
 
         return '<p class="' . $class . '">' . $inner . '</p>';
     }
@@ -386,7 +510,12 @@ final class DocxHtml
         $italic = false;
         $underline = false;
 
-        foreach ($r->getElementsByTagNameNS(self::W_NS, 'rPr') as $rPr) {
+        $colourClass = null;
+        $highlight = false;
+
+        $rPr = self::child($r, 'rPr');
+
+        if ($rPr !== null) {
             foreach ($rPr->childNodes as $prop) {
                 if (!$prop instanceof DOMElement) {
                     continue;
@@ -396,11 +525,13 @@ final class DocxHtml
                 } elseif ($prop->localName === 'i') {
                     $italic = self::onOff($prop);
                 } elseif ($prop->localName === 'u') {
-                    $val = $prop->getAttribute('w:val') ?: $prop->getAttributeNS(self::W_NS, 'val');
-                    $underline = $val !== '' && strtolower($val) !== 'none';
+                    $underline = self::val($prop) !== '' && strtolower(self::val($prop)) !== 'none';
+                } elseif ($prop->localName === 'color') {
+                    $colourClass = self::colourClass(strtoupper(self::val($prop)));
+                } elseif ($prop->localName === 'highlight') {
+                    $highlight = strtolower(self::val($prop)) !== 'none';
                 }
             }
-            break;
         }
 
         $text = '';
@@ -433,6 +564,12 @@ final class DocxHtml
             return '';
         }
 
+        if ($colourClass !== null) {
+            $text = '<span class="' . $colourClass . '">' . $text . '</span>';
+        }
+        if ($highlight) {
+            $text = '<mark class="dv-mark">' . $text . '</mark>';
+        }
         if ($underline) {
             $text = '<u>' . $text . '</u>';
         }

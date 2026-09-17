@@ -23,6 +23,14 @@
        body text 16.25:1 -> 15.83:1 and muted 6.44 -> 6.27, so it stays
        comfortably AA. Raise this and re-measure before shipping. */
     --watermark-opacity: .05;
+    /* Colours a rendered document may use. Restated in the dark block: a
+       document's red has to stay red in both themes, but #C00000 on a dark
+       ground is muddy, so each theme gets a tone that actually reads. */
+    --doc-red: #c00000;
+    --doc-blue: #1a4f9c;
+    --doc-green: #1a7f4b;
+    --doc-mark: #fff3a3;
+    --doc-mark-ink: #1a1a1a;
     /* The seal's gold. A background for dark text, never a text colour here. */
     --gold: #f0c102;
     --gold-strong: #d9ae00;
@@ -60,6 +68,11 @@
         /* Slightly stronger: gold on a dark ground reads fainter. At 6%
            body is 12.91:1 and muted 6.05:1 — still AA. */
         --watermark-opacity: .06;
+        --doc-red: #ff8f85;
+        --doc-blue: #8ab4f8;
+        --doc-green: #6ecf95;
+        --doc-mark: #5c4a00;
+        --doc-mark-ink: #fdf3cf;
         --gold: #f0c102;
         --gold-strong: #ffd426;
         --gold-ink: #1a1a1a;
@@ -2135,3 +2148,34 @@ body {
     margin-right: 0;
 }
 [data-doc-body] .page-head { max-width: none; }
+
+/* --- Formatting carried over from the document (FR-41) ---------------------
+   The renderer emits these as CLASSES because the CSP forbids inline style, so
+   every visual property has to be a fixed name. That is also why the indent is
+   quantised: a class cannot carry an arbitrary measurement. */
+.doc-render .dv-center { text-align: center; }
+.doc-render .dv-justify { text-align: justify; }
+.doc-render .dv-right { text-align: right; }
+
+/* Word's default first-line indent is 720 twips — half an inch. */
+.doc-render .dv-indent { text-indent: 3em; }
+
+.doc-render .dv-pad-1 { margin-left: 2em; }
+.doc-render .dv-pad-2 { margin-left: 4em; }
+.doc-render .dv-pad-3 { margin-left: 6em; }
+.doc-render .dv-pad-4 { margin-left: 8em; }
+
+.doc-render .dv-red { color: var(--doc-red); }
+.doc-render .dv-blue { color: var(--doc-blue); }
+.doc-render .dv-green { color: var(--doc-green); }
+
+.doc-render .dv-mark {
+    background: var(--doc-mark);
+    color: var(--doc-mark-ink);
+    padding: 0 .1em;
+}
+
+/* A centred heading must not also be indented — Word's own precedence, and
+   without this a centred-and-indented paragraph drifts off centre. */
+.doc-render .dv-center.dv-indent,
+.doc-render .dv-right.dv-indent { text-indent: 0; }
