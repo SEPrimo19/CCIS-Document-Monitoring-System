@@ -1811,14 +1811,21 @@ body {
 .doc-frame {
     display: block;
     width: 100%;
-    aspect-ratio: 1 / 1.3;
-    min-height: 420px;
+    /* Height from the VIEWPORT, not an aspect ratio. A ratio sizes the frame
+       from its own width and so ignores how tall the screen actually is: on a
+       wide monitor it produced a frame taller than the window, and on a laptop
+       a short one with empty space under it. This takes what is left after the
+       top bar and the page's own furniture, so the page fills the screen it
+       has. The subtraction is deliberately a little conservative — better a
+       short scroll than a frame that overhangs the window. */
+    height: calc(100vh - 17rem);
+    min-height: 30rem;
     border: 0;
 }
 @media (max-width: 480px) {
     .doc-frame {
-        aspect-ratio: 1 / 1.1;
-        min-height: 320px;
+        height: calc(100vh - 13rem);
+        min-height: 20rem;
     }
 }
 
@@ -2107,7 +2114,10 @@ body {
    the dialog the dialog scrolls, so they grow instead of nesting scrollbars. */
 .doc-modal-body .doc-render { max-height: none; overflow: visible; }
 .doc-modal-body .doc-text { max-height: none; }
-.doc-modal-body .doc-frame { min-height: 62vh; }
+/* The dialog already caps itself against the viewport, so inside it the frame
+   is sized as a share of the dialog rather than of the window — the page rule
+   would overhang and make the dialog scroll twice. */
+.doc-modal-body .doc-frame { height: 66vh; min-height: 24rem; }
 
 @media (max-width: 480px) {
     .doc-modal { width: 96vw; height: 92vh; border-radius: 10px; }
@@ -2293,4 +2303,66 @@ body {
 [data-live-region][aria-busy="true"] {
     opacity: .55;
     transition: opacity .12s ease-in;
+}
+
+/* --- Giving the document the screen (FR-41) --------------------------------
+   .wrap caps content at 900px. That is the right readable measure for forms and
+   tables, and the wrong one for a document: on a 1920px screen it left roughly
+   480px for the page itself once the sidebar, and the browser's own PDF toolbar
+   and thumbnail rail, had taken their share — which is why a document opened at
+   69% zoom and had to be read at arm's length.
+
+   :has() is what lets the page widen its own container without a second body
+   class or a per-view stylesheet. Where it is unsupported nothing matches and
+   the page stays at 900px: the old behaviour, not a broken one. */
+.wrap:has([data-doc-body]) {
+    max-width: none;
+    padding-left: 2rem;
+    padding-right: 2rem;
+}
+
+/* Full screen is hidden until app.js confirms the browser allows it — the API
+   is refused outright in some embedded and iframed contexts, and a button that
+   does nothing is worse than no button. */
+.doc-fullscreen { display: none; }
+.can-fullscreen .doc-fullscreen { display: inline-block; }
+
+.doc-tools {
+    display: flex;
+    justify-content: flex-end;
+    margin: 1rem 0 .4rem;
+}
+/* The toolbar has taken over the gap the frame used to open with; keeping both
+   left a visible step between the button and the document it acts on. */
+.doc-viewer-shell .doc-viewer { margin-top: 0; }
+
+/* The shell is what the browser promotes, so the button travels with it and
+   stays reachable; :fullscreen matches only that promoted element. The frame
+   drops its viewport maths here and simply takes the space left beside the
+   toolbar. */
+.doc-viewer-shell:fullscreen {
+    display: flex;
+    flex-direction: column;
+    padding: .4rem .6rem .6rem;
+    background: var(--bg);
+}
+.doc-viewer-shell:fullscreen .doc-tools { margin: 0 0 .4rem; }
+.doc-viewer-shell:fullscreen .doc-viewer {
+    display: flex;
+    flex: 1 1 auto;
+    /* Against the flex default of min-height:auto, which would let the frame
+       push the shell past the screen instead of shrinking to fit it. */
+    min-height: 0;
+    margin-top: 0;
+}
+.doc-viewer-shell:fullscreen .doc-frame {
+    flex: 1 1 auto;
+    height: auto;
+    min-height: 0;
+}
+
+@media (max-width: 899px) {
+    /* The sidebar is a drawer at this width and the screen is small: the wider
+       gutters would cost more than the width they buy back. */
+    .wrap:has([data-doc-body]) { padding-left: 1.25rem; padding-right: 1.25rem; }
 }

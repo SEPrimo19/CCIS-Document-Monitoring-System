@@ -46,26 +46,6 @@ $statusPill = [
 </section>
 
 <section class="form-card">
-    <dl class="meta-list">
-        <div><dt>Faculty</dt><dd><?= htmlspecialchars($document['faculty_name']) ?></dd></div>
-        <div><dt>Status</dt><dd><span class="status-pill <?= $statusPill ?>"><?= htmlspecialchars($document['status']) ?></span></dd></div>
-        <div><dt>Period</dt><dd><?= htmlspecialchars($periodLabel) ?></dd></div>
-        <div><dt>Uploaded</dt><dd><?= htmlspecialchars(date('M j, Y g:ia', strtotime($document['uploaded_at']))) ?></dd></div>
-        <div><dt>Size</dt><dd><?= number_format($document['file_size'] / 1024, 0) ?> KB</dd></div>
-        <div><dt>Deadline</dt><dd><?= $document['deadline'] !== null ? htmlspecialchars(date('M j, Y', strtotime($document['deadline']))) : '&mdash;' ?></dd></div>
-    </dl>
-
-    <?php // The Secretary reaches the decision form from here, so viewing and
-          // deciding are one trip rather than two. Only for a document actually
-          // awaiting a decision — the review route refuses anything else. ?>
-    <?php if ($isSecretary && $document['status'] === 'Submitted'): ?>
-        <p class="doc-actions">
-            <a href="<?= url('/reviewer/submissions/' . $document['submission_id'] . '/review') ?>" class="btn-sm btn-primary-sm">Review this submission &rarr;</a>
-        </p>
-    <?php endif; ?>
-</section>
-
-<section class="form-card">
     <h2>Document</h2>
 
     <?php if ($missing): ?>
@@ -74,11 +54,26 @@ $statusPill = [
         </p>
 
     <?php elseif ($mode === 'pdf'): ?>
-        <div class="doc-viewer">
-            <iframe class="doc-frame"
-                    src="<?= url('/documents/' . $document['file_id'] . '/view') ?>"
-                    title="<?= htmlspecialchars($document['file_name']) ?>"
-                    loading="lazy"></iframe>
+        <?php // Full screen gives the document the whole display, which is what
+              // reading a fifty-page file actually needs: inside the app the
+              // browser's own PDF toolbar and thumbnail rail take their share
+              // before the page gets any.
+              //
+              // The shell, not the frame, is what goes full screen, so the
+              // button stays on screen and can say how to get back out. It is
+              // hidden by CSS until app.js confirms the browser allows it, and
+              // the click is wired there because the CSP blocks inline
+              // handlers. ?>
+        <div class="doc-viewer-shell" data-doc-frame-wrap>
+            <p class="doc-tools">
+                <button type="button" class="btn-sm btn-primary-sm doc-fullscreen" data-doc-fullscreen>Full screen</button>
+            </p>
+            <div class="doc-viewer">
+                <iframe class="doc-frame"
+                        src="<?= url('/documents/' . $document['file_id'] . '/view') ?>"
+                        title="<?= htmlspecialchars($document['file_name']) ?>"
+                        loading="lazy"></iframe>
+            </div>
         </div>
         <p class="muted-note">
             <a href="<?= url('/documents/' . $document['file_id'] . '/view') ?>" target="_blank" rel="noopener">Open in a new tab</a>
@@ -138,6 +133,30 @@ $statusPill = [
                 <strong>Preview not available</strong> for <code><?= htmlspecialchars(strtoupper($ext)) ?></code> files.
                 Download the file to read it.
             <?php endif; ?>
+        </p>
+    <?php endif; ?>
+</section>
+
+<?php // The metadata comes AFTER the document, not before it. This screen
+      // exists to read a document; six fields and a Review button above it
+      // meant scrolling past them every time, and on a laptop the document
+      // itself started below the fold. ?>
+<section class="form-card">
+    <dl class="meta-list">
+        <div><dt>Faculty</dt><dd><?= htmlspecialchars($document['faculty_name']) ?></dd></div>
+        <div><dt>Status</dt><dd><span class="status-pill <?= $statusPill ?>"><?= htmlspecialchars($document['status']) ?></span></dd></div>
+        <div><dt>Period</dt><dd><?= htmlspecialchars($periodLabel) ?></dd></div>
+        <div><dt>Uploaded</dt><dd><?= htmlspecialchars(date('M j, Y g:ia', strtotime($document['uploaded_at']))) ?></dd></div>
+        <div><dt>Size</dt><dd><?= number_format($document['file_size'] / 1024, 0) ?> KB</dd></div>
+        <div><dt>Deadline</dt><dd><?= $document['deadline'] !== null ? htmlspecialchars(date('M j, Y', strtotime($document['deadline']))) : '&mdash;' ?></dd></div>
+    </dl>
+
+    <?php // The Secretary reaches the decision form from here, so viewing and
+          // deciding are one trip rather than two. Only for a document actually
+          // awaiting a decision — the review route refuses anything else. ?>
+    <?php if ($isSecretary && $document['status'] === 'Submitted'): ?>
+        <p class="doc-actions">
+            <a href="<?= url('/reviewer/submissions/' . $document['submission_id'] . '/review') ?>" class="btn-sm btn-primary-sm">Review this submission &rarr;</a>
         </p>
     <?php endif; ?>
 </section>

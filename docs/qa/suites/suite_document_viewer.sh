@@ -186,4 +186,59 @@ assert_eq "the viewer page is still a full page" 1   "$(curl -s -c "$SEC" -b "$S
 assert_eq "the dialog offers a full-page link" 1   "$(echo "$listing" | grep -c 'data-doc-full')"
 assert_eq "the full-page link is not itself intercepted" 0   "$(echo "$listing" | grep -o 'data-doc-full[^>]*' | grep -c 'data-doc-view')"
 
+# --- 9. the document gets the screen ----------------------------------------
+# Four changes that are invisible to a route test and easy to undo by accident,
+# because three of them live in the stylesheet.
+page=$(curl -s -c "$SEC" -b "$SEC" "$BASE/documents/$FID")
+
+# The document must come BEFORE the metadata. Compared by line number rather
+# than by grepping for an order-bearing string, which any rewording would break.
+doc_at=$(echo "$page" | grep -n '<h2>Document</h2>' | head -1 | cut -d: -f1)
+meta_at=$(echo "$page" | grep -n 'class="meta-list"' | head -1 | cut -d: -f1)
+if [ -n "$doc_at" ] && [ -n "$meta_at" ] && [ "$doc_at" -lt "$meta_at" ]; then
+  pass "the document is above the metadata (lines $doc_at vs $meta_at)"
+else
+  fail "the metadata is back above the document (lines $doc_at vs $meta_at)"
+fi
+
+if echo "$page" | grep -q 'class="doc-frame"'; then
+  # The control has to sit inside the element that goes full screen, or the
+  # browser promotes a box the button is not in and it vanishes on click.
+  wrap=$(echo "$page" | grep -c 'data-doc-frame-wrap')
+  btn=$(echo "$page" | grep -c 'data-doc-fullscreen')
+  if [ "$wrap" -ge 1 ] && [ "$btn" -ge 1 ]; then
+    pass "the PDF frame offers a full-screen control"
+  else
+    fail "the PDF frame has no full-screen control (wrap $wrap, button $btn)"
+  fi
+else
+  pass "full-screen control not applicable (no PDF frame for this document)"
+fi
+
+css=$(curl -s "$BASE/assets/css/style.css")
+
+# .wrap caps content at 900px, which left the page itself about 480px on a
+# 1920px screen. The viewer opts out; nothing else does.
+if echo "$css" | grep -q '\.wrap:has(\[data-doc-body\])'; then
+  pass "the viewer page opts out of the 900px column"
+else
+  fail "the viewer page is back inside the 900px column"
+fi
+
+# An aspect ratio sizes the frame from its own width and ignores the window.
+if echo "$css" | grep -A 12 '^\.doc-frame {' | grep -q '100vh'; then
+  pass "the frame takes its height from the viewport"
+else
+  fail "the frame no longer sizes itself against the viewport"
+fi
+
+# The script reveals the button only where the API is permitted, so a browser
+# that forbids it never shows a control that does nothing.
+js=$(curl -s "$BASE/assets/js/app.js")
+if echo "$js" | grep -q 'fullscreenEnabled'; then
+  pass "the control is shown only where full screen is allowed"
+else
+  fail "the control is shown without checking that full screen is allowed"
+fi
+
 result_line

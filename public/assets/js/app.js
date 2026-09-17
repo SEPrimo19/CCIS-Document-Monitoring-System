@@ -596,3 +596,77 @@
         });
     });
 })();
+
+// Full screen for the document frame (FR-41).
+//
+// Even with the viewer page out of the 900px column, the browser's own PDF
+// toolbar and thumbnail rail take a fixed share of the frame, so a page still
+// reads small on a laptop. Full screen is the one thing that gives the document
+// the entire display.
+//
+// The button ships hidden and this reveals it, because fullscreenEnabled is
+// false in contexts that forbid the API (an iframe without allowfullscreen,
+// some embedded browsers) and a button that silently does nothing is worse than
+// no button at all. The click is delegated from the document, so the copy the
+// modal lifts out of this same page is wired without any extra work.
+(function () {
+    'use strict';
+
+    var root = document.documentElement;
+
+    if (!root || !document.fullscreenEnabled || !Element.prototype.requestFullscreen) {
+        return;
+    }
+
+    root.classList.add('can-fullscreen');
+
+    function label(button, isFull) {
+        button.textContent = isFull ? 'Exit full screen' : 'Full screen';
+    }
+
+    document.addEventListener('click', function (event) {
+        var button = event.target.closest
+            ? event.target.closest('[data-doc-fullscreen]')
+            : null;
+
+        if (!button || event.defaultPrevented) {
+            return;
+        }
+
+        event.preventDefault();
+
+        if (document.fullscreenElement) {
+            document.exitFullscreen();
+            return;
+        }
+
+        var shell = button.closest('[data-doc-frame-wrap]');
+
+        if (!shell) {
+            return;
+        }
+
+        // Promised, and it rejects rather than throws when the gesture is not
+        // trusted or a policy refuses. Leaving that unhandled would surface as
+        // an uncaught rejection in the console on an otherwise working page.
+        var request = shell.requestFullscreen();
+
+        if (request && typeof request.catch === 'function') {
+            request.catch(function () {
+                label(button, false);
+            });
+        }
+    });
+
+    // One handler for every way out — the button, Escape, F11, the browser's
+    // own chrome — so the label can never disagree with the actual state.
+    document.addEventListener('fullscreenchange', function () {
+        var full = document.fullscreenElement;
+        var buttons = document.querySelectorAll('[data-doc-fullscreen]');
+
+        for (var i = 0; i < buttons.length; i++) {
+            label(buttons[i], full !== null && full.contains(buttons[i]));
+        }
+    });
+})();
+
