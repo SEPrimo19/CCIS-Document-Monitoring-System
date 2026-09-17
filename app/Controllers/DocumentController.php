@@ -6,6 +6,7 @@ namespace App\Controllers;
 
 use App\Core\Auth;
 use App\Core\Controller;
+use App\Core\DocumentConverter;
 use App\Core\DocxHtml;
 use App\Core\DocxText;
 use App\Core\Guard;
@@ -116,6 +117,13 @@ final class DocumentController extends Controller
         if (!$missing) {
             if ($ext === 'pdf' && $file['mime_type'] === 'application/pdf') {
                 $mode = 'pdf';
+            } elseif (in_array($ext, DocumentConverter::CONVERTIBLE, true)
+                      && DocumentConverter::available()) {
+                // Converted to PDF and shown in the browser's own PDF viewer:
+                // pages, zoom and the real layout, which is what "view the
+                // document" actually means. The conversion happens once and is
+                // cached, so only the first open pays for it.
+                $mode = 'pdf';
             } elseif ($ext === 'docx') {
                 // Rendered as a document first — paragraphs, emphasis, tables
                 // and images — because "view it in the app" means seeing the
@@ -204,14 +212,31 @@ final class DocumentController extends Controller
         // was written at upload time, and this route relaxes a security header,
         // so it re-derives rather than trusts.
         $ext = strtolower(pathinfo((string) $file['file_name'], PATHINFO_EXTENSION));
+        $absolutePath = dirname(__DIR__, 2) . '/storage/uploads/' . basename($file['file_path']);
 
-        if ($ext !== 'pdf' || $file['mime_type'] !== 'application/pdf') {
+        if (!is_file($absolutePath)) {
             $this->notFoundPage();
             return;
         }
 
-        $absolutePath = dirname(__DIR__, 2) . '/storage/uploads/' . basename($file['file_path']);
-        if (!is_file($absolutePath)) {
+        if ($ext === 'pdf' && $file['mime_type'] === 'application/pdf') {
+            $servePath = $absolutePath;
+            $displayName = (string) $file['file_name'];
+        } elseif (in_array($ext, DocumentConverter::CONVERTIBLE, true)) {
+            // A Word document is served as its converted PDF. The conversion is
+            // cached on the first request; a later one is a file read.
+            $servePath = DocumentConverter::pdfFor($absolutePath, (int) $file['file_id']);
+
+            if ($servePath === null) {
+                // No converter installed, or the conversion failed. The viewer
+                // has already fallen back to the rendered HTML, so there is
+                // nothing to frame here.
+                $this->notFoundPage();
+                return;
+            }
+
+            $displayName = pathinfo((string) $file['file_name'], PATHINFO_FILENAME) . '.pdf';
+        } else {
             $this->notFoundPage();
             return;
         }
@@ -235,13 +260,13 @@ final class DocumentController extends Controller
 
         // Inline, and the filename is still sanitised: a quote or newline in it
         // would otherwise split the header.
-        $displayName = str_replace(["\r", "\n", '"'], '', $file['file_name']);
+        $displayName = str_replace(["\r", "\n", '"'], '', $displayName);
 
         header('Content-Type: application/pdf');
-        header('Content-Length: ' . (string) filesize($absolutePath));
+        header('Content-Length: ' . (string) filesize($servePath));
         header('Content-Disposition: inline; filename="' . $displayName . '"');
 
-        readfile($absolutePath);
+        readfile($servePath);
         exit;
     }
 

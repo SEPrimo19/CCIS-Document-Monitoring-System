@@ -340,3 +340,36 @@ theirs. These are git-ignored, so they never travel with a `git clone` or a
 
 Do both, or neither. A database restored without its files will show submissions
 whose downloads fail.
+
+## Optional: Word documents shown as PDF
+
+The in-app viewer (FR-41) shows a PDF submission as itself. A Word submission
+has no native renderer in any browser, so the system falls back to rendering the
+document's contents — text, emphasis, tables and images — which is readable but
+has no pagination and not the exact page layout.
+
+Install **LibreOffice** and Word submissions are instead converted to PDF and
+shown in the browser's own PDF viewer, with pages, zoom and the real layout:
+
+1. Download it from <https://www.libreoffice.org/download/> and install with the
+   defaults.
+2. Restart the PHP server so the new install is picked up.
+
+That is the whole setup. No configuration and no code change: the application
+looks for LibreOffice at the usual Windows, Linux and macOS paths, and switches
+on the moment it finds one. Set `SOFFICE_PATH` in the environment only if it is
+installed somewhere unusual.
+
+**It is genuinely optional.** Without it nothing breaks — the viewer simply uses
+the rendered-contents fallback, and every other feature is unaffected.
+
+Conversions are cached under `storage/previews/`, keyed by the source file's
+size and modification time, so each document is converted once and a re-uploaded
+version gets a new entry rather than a stale one. The cache is outside the web
+root and is not committed; deleting it only means the next view reconverts.
+
+LibreOffice was chosen over driving Microsoft Word through PHP's COM extension
+because it runs headless on Windows *and* Linux. Word automation would have tied
+the system to a Windows server with Office licensed on it, which would not
+survive deployment to a campus server.
+
