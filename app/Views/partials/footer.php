@@ -13,7 +13,16 @@
 <dialog id="doc-modal" class="doc-modal" aria-labelledby="doc-modal-title">
     <div class="doc-modal-head">
         <h2 class="doc-modal-title" id="doc-modal-title">Document</h2>
-        <button type="button" class="doc-modal-close" data-doc-close aria-label="Close document">&times;</button>
+        <div class="doc-modal-actions">
+            <?php // The full page still exists and is the better surface for a long
+                  // document — the dialog is capped at a share of the viewport. It was
+                  // reachable only by ctrl-click once the modal started intercepting
+                  // View, which is not a thing anyone discovers. href is filled in by
+                  // app.js when a document is opened; deliberately NOT data-doc-view,
+                  // so this one link is left to navigate normally. ?>
+            <a class="doc-modal-full" data-doc-full href="#" hidden>Open full page</a>
+            <button type="button" class="doc-modal-close" data-doc-close aria-label="Close document">&times;</button>
+        </div>
     </div>
     <div class="doc-modal-body" data-doc-target>
         <p class="muted-note">Loading&hellip;</p>

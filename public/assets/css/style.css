@@ -2088,3 +2088,30 @@ body {
     .doc-modal { width: 96vw; height: 92vh; border-radius: 10px; }
     .doc-modal-body { padding: .9rem 1rem 1.2rem; }
 }
+
+/* The dialog's own actions. "Open full page" sits beside Close because the
+   dialog is capped at a share of the viewport, and a long document is easier
+   to read on the page that has the whole window. */
+.doc-modal-actions {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    flex: none;
+}
+.doc-modal-full {
+    font-size: .85rem;
+    font-weight: 600;
+    color: var(--brand);
+    text-decoration: none;
+    white-space: nowrap;
+    padding: .35rem .6rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+}
+.doc-modal-full:hover { background: var(--gold); color: var(--gold-ink); border-color: var(--gold); }
+.doc-modal-full:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+
+@media (max-width: 480px) {
+    /* The title needs the room more than the label does on a phone. */
+    .doc-modal-full { padding: .3rem .45rem; font-size: .8rem; }
+}

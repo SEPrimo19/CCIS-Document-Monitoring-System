@@ -331,6 +331,7 @@
 
         var target = dialog.querySelector('[data-doc-target]');
         var titleEl = dialog.querySelector('.doc-modal-title');
+        var fullLink = dialog.querySelector('[data-doc-full]');
         var opener = null;
         var inFlight = null;
 
@@ -344,6 +345,11 @@
             target.innerHTML = '<p class="muted-note">Loading&hellip;</p>';
             titleEl.textContent = 'Document';
             dialog.classList.remove('is-ready');
+
+            if (fullLink) {
+                fullLink.hidden = true;
+                fullLink.removeAttribute('href');
+            }
         }
 
         function open(url, label) {
@@ -356,6 +362,12 @@
 
             reset();
             titleEl.textContent = label || 'Document';
+
+            if (fullLink) {
+                fullLink.href = url;
+                fullLink.hidden = false;
+            }
+
             dialog.showModal();
 
             fetch(url, {

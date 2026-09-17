@@ -163,4 +163,12 @@ assert_eq "the viewer page exposes the region the modal lifts" 1   "$(curl -s -c
 # lands, so it must never become a fragment.
 assert_eq "the viewer page is still a full page" 1   "$(curl -s -c "$SEC" -b "$SEC" "$BASE/documents/$FID" | grep -c '<!doctype html>')"
 
+# --- 8. the full page stays reachable ---------------------------------------
+# Once the modal started intercepting View, the standalone page was reachable
+# only by ctrl-click — which nobody discovers. The dialog carries an explicit
+# link to it, and that link must NOT be marked data-doc-view or it would be
+# intercepted straight back into the modal it is trying to escape.
+assert_eq "the dialog offers a full-page link" 1   "$(echo "$listing" | grep -c 'data-doc-full')"
+assert_eq "the full-page link is not itself intercepted" 0   "$(echo "$listing" | grep -o 'data-doc-full[^>]*' | grep -c 'data-doc-view')"
+
 result_line
