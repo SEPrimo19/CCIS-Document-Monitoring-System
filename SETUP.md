@@ -128,7 +128,8 @@ copy .env.example .env
 copy-paste the file and rename the copy to exactly `.env` — no `.txt` on the end.
 Turn on **View → File name extensions** so you can see what it is really called.)
 
-Open `.env` and make sure this line is present and uncommented:
+Open `.env` and **uncomment** this line — the example ships it commented out, so
+that a real deployment copying the same file does not inherit the debug posture:
 
 ```
 APP_ENV=development

@@ -165,8 +165,18 @@ account — not by the running application.
 
 - Serve exclusively over HTTPS (TLS certificate; on a campus deployment this may be
   an internal CA).
-- Set `APP_ENV=production` so the session cookie is issued with the `Secure` flag
-  (already wired in `Auth::boot()`).
+- Set `APP_ENV=production` (or leave `APP_ENV` unset, which resolves to it) so
+  raw exception text is never shown to a user.
+- **The `Secure` cookie flag does not follow `APP_ENV`.** `Auth::boot()` derives
+  it from the actual transport — `!empty($_SERVER['HTTPS'])` — and deliberately
+  so: deriving it from the environment would set `Secure` on a plain-HTTP
+  localhost and break sign-in entirely there. The practical consequence is that
+  **serving over HTTPS is the only thing that gives you `Secure` cookies**;
+  setting `APP_ENV=production` on an HTTP site does not, and a deployer who
+  believes otherwise has session cookies crossing the network unprotected.
+  Behind a TLS-terminating proxy, `$_SERVER['HTTPS']` must actually be set for
+  the app (`SetEnvIf X-Forwarded-Proto https HTTPS=on`, or the proxy's
+  equivalent), or the flag will be omitted on a site that is genuinely HTTPS.
 - Add HSTS at the web server: `Strict-Transport-Security: max-age=31536000; includeSubDomains`.
 - Redirect all HTTP to HTTPS.
 
