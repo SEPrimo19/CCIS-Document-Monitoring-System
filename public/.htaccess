@@ -9,11 +9,33 @@
 # Do not list directory contents.
 Options -Indexes
 
-# Security headers — backup for Apache's own static-file responses; the
-# front controller sends the same headers for every PHP-generated response.
+# Security headers — backup for Apache's own STATIC-file responses only. The
+# front controller sends these itself on every PHP-generated response.
+#
+# The FilesMatch is not decoration, it is the whole correctness of this block.
+# Unscoped, these directives also apply to PHP responses, and mod_headers'
+# `always` writes into err_headers_out — which Apache merges with what PHP
+# already sent rather than replacing it. The result is TWO of each header on
+# the same response, measured on Apache 2.4:
+#
+#     X-Frame-Options: DENY            <- this file
+#     X-Frame-Options: SAMEORIGIN      <- PHP, for the one framed route
+#
+# A browser treats conflicting X-Frame-Options as "deny", and intersects
+# multiple CSP headers so the stricter frame-ancestors wins. That silently
+# breaks the in-app document viewer (FR-41): GET /documents/{id}/view is the one
+# route allowed to be framed, and it would render as an empty box on any Apache
+# deployment while working perfectly on the PHP dev server, which never reads
+# this file. Verified in Chrome: same-origin iframe refused before the scoping,
+# rendered after it.
+#
+# So: static assets get these headers from Apache; anything PHP generates is
+# left to state its own policy, which it does on every single response.
 <IfModule mod_headers.c>
-    Header always set X-Content-Type-Options "nosniff"
-    Header always set X-Frame-Options "DENY"
-    Header always set Referrer-Policy "no-referrer"
-    Header always set Content-Security-Policy "default-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    <FilesMatch "\.(css|js|map|png|jpe?g|gif|webp|svg|ico|woff2?|ttf|eot|txt)$">
+        Header always set X-Content-Type-Options "nosniff"
+        Header always set X-Frame-Options "DENY"
+        Header always set Referrer-Policy "no-referrer"
+        Header always set Content-Security-Policy "default-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    </FilesMatch>
 </IfModule>

@@ -220,4 +220,31 @@ done
 [ "$BAD" -eq 0 ] && pass "5 malformed URLs leak no PHP, path or SQL detail" \
                  || fail "$BAD URL(s) leaked internals"
 
+# --- 13. Apache config (static check — the dev server never reads .htaccess) -
+# This is the one part of the stack these suites CANNOT exercise at runtime:
+# the PHP dev server ignores .htaccess entirely, so a rule that breaks the app
+# on Apache passes every live test here. It is checked by reading instead.
+HT="$(dirname "${BASH_SOURCE[0]}")/../../public/.htaccess"
+if [ -f "$HT" ]; then
+  # Unscoped Header directives also apply to PHP responses, and `always` merges
+  # with what PHP already sent rather than replacing it — two X-Frame-Options on
+  # one response, which a browser resolves as "deny". That breaks the one route
+  # allowed to be framed (the document viewer) on Apache only.
+  if grep -q 'FilesMatch' "$HT" &&      [ "$(grep -c 'Header always set' "$HT")" -gt 0 ] &&      [ "$(sed -n '/<FilesMatch/,/<\/FilesMatch>/p' "$HT" | grep -c 'Header always set')"        = "$(grep -c 'Header always set' "$HT")" ]; then
+    pass "every Apache header directive is scoped to static files"
+  else
+    fail "a Header directive in public/.htaccess is unscoped — it will clobber the framed route on Apache"
+  fi
+  grep -q 'Options -Indexes' "$HT" && pass "directory listing is off" || fail "public/.htaccess does not disable indexes"
+fi
+
+# The project-root .htaccess is the safety net for a mis-set DocumentRoot: with
+# it, that mistake fails closed instead of serving .env and storage/uploads/.
+ROOT_HT="$(dirname "${BASH_SOURCE[0]}")/../../.htaccess"
+if grep -qE 'Require all denied|Deny from all' "$ROOT_HT" 2>/dev/null; then
+  pass "a mis-set DocumentRoot fails closed"
+else
+  fail "the project-root .htaccess no longer denies everything"
+fi
+
 result_line

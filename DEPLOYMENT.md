@@ -389,6 +389,9 @@ Work through this before handing the system over:
 - [ ] Faculty can upload a PDF; the Secretary is notified and the queue shows it
 - [ ] Approve and return both work, and the audit log records them
 - [ ] Download works, and a faculty member cannot download another's file
+- [ ] **Open a document with "View" — the page renders inside the app, not as an
+      empty box.** This is the one feature Apache can break on its own: see the
+      note in `public/.htaccess` about header directives and the framed route.
 - [ ] Reports export to CSV and print
 - [ ] A wrong password five times triggers the lockout message
 - [ ] The backup script has run once and you have **restored** it somewhere

@@ -133,3 +133,46 @@ queries with no retention policy.** Previously recorded, unchanged.
 - The **destructive QA suites** (`suite_profile`, `suite_review`,
   `suite_resubmit`, `suite_admin_crud`) were not run, because they write to the
   database and do not restore it. They need a clean reseed.
+
+---
+
+## Follow-up, 2026-09-18 — one defect the audit could not have caught
+
+Re-reading `public/.htaccess` while answering "is this ready to deploy" turned up
+a fault that **no runtime test in this repository can reach**: the PHP dev server
+never reads `.htaccess`, so an Apache-only rule passes every live suite here and
+then breaks the app the first time it is deployed.
+
+`public/.htaccess` set the four security headers unscoped. Its own comment said
+they were a backup "for Apache's own static-file responses", but as written they
+also applied to PHP responses — and mod_headers' `always` writes into
+`err_headers_out`, which Apache **merges** with what PHP already sent rather than
+replacing it. Measured on Apache 2.4 with a stand-in for the viewer route:
+
+```
+X-Frame-Options: DENY                              <- .htaccess
+X-Frame-Options: SAMEORIGIN                        <- PHP, the framed route
+Content-Security-Policy: ... frame-ancestors 'none' ...   <- .htaccess
+Content-Security-Policy: ... frame-ancestors 'self' ...   <- PHP
+```
+
+A browser resolves conflicting `X-Frame-Options` as deny, and intersects multiple
+CSP headers so the stricter `frame-ancestors` wins. **The in-app document viewer
+(FR-41) would therefore have rendered as an empty box on every Apache
+deployment** while working perfectly in development. Verified in Chrome against a
+local Apache: the same-origin iframe was refused before the fix and rendered
+after it.
+
+Fixed by scoping the header block to static files with `<FilesMatch>`, which is
+what the comment always said it was for. Static assets still carry all four
+headers from Apache; PHP responses state their own policy, which the front
+controller does on every single response — both re-measured through Apache.
+
+Two static guards were added to `suite_security_audit.sh` (§13) so this cannot
+come back unnoticed: every `Header always set` must sit inside a `FilesMatch`,
+and the project-root `.htaccess` must still fail closed.
+
+**The lesson for the rest of this audit:** its scope note above says Apache was
+not exercised, and this is what that limitation was worth. Anything else in the
+Apache and HTTPS layer is still unverified.
+
