@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 # Shared helpers for CCIS-DMS QA curl suites.
-BASE="http://localhost:8000"
+# Overridable, so a suite can be pointed at a different server without editing
+# anything. That is not a convenience: the PHP dev server and Apache genuinely
+# behave differently (the dev server serves any URI containing an extension
+# straight from disk and never reads .htaccess), and a rule that breaks the app
+# on Apache passes every suite here unless they can be re-run against it:
+#
+#   CCIS_BASE=http://localhost/ccis bash docs/qa/suites/suite_document_viewer.sh
+BASE="${CCIS_BASE:-http://localhost:8000}"
 # Resolves to this script's own directory, so the suites run from wherever the
 # repo is checked out. They previously hard-coded a session scratchpad path,
 # which is how this evidence was lost twice (see docs/qa/README.md).

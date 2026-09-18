@@ -1,4 +1,20 @@
 #!/usr/bin/env bash
+#
+# MOUNT ASSUMPTION: this suite asserts ROOT-MOUNTED link paths
+# (href="/notifications", action="/search", and so on). The app derives BASE_URL
+# from SCRIPT_NAME and is tolerant of a subfolder, so pointing this suite at an
+# app served from one —
+#
+#     CCIS_BASE=http://localhost/ccis bash docs/qa/suites/suite_navigation.sh
+#
+# — reports about 20 false failures for links that are perfectly correct as
+# /ccis/notifications. Measured 2026-09-18 against Apache: 139 passed, 20
+# failed, every failure a root-anchored grep rather than an application fault.
+#
+# A real deployment points DocumentRoot at public/ (DEPLOYMENT.md §4) and is
+# therefore root-mounted, so this suite applies as written. suite_rbac,
+# smoke_postcommit, suite_document_viewer and suite_security_audit are
+# mount-agnostic and were re-run clean against Apache.
 source "$(dirname "$0")/common.sh"
 
 echo "=== Navigation / sidebar regression + CSP inline-attribute suite ==="
@@ -11,7 +27,10 @@ login "$FAC" "faculty1@nwssu.edu.ph" "Faculty@123" > /dev/null
 
 # --- Static source scan (already confirmed 0 via grep -rn over app/Views,
 # repeated here so it's part of the recorded suite run) ---
-PROJECT="/c/Users/Admin/OneDrive/Desktop/Jhon Clarence Rulona/Clients/CCIS-Document_Management_System/ccis-dms"
+# Resolved from this script's own location, not hard-coded. common.sh's header
+# records that a hard-coded scratchpad path is how this evidence was lost twice;
+# this was the last absolute path left in the suites.
+PROJECT="$(cd "$(dirname "$0")/../../.." && pwd)"
 style_hits=$(grep -rniE 'style="' "$PROJECT/app/Views" 2>/dev/null | wc -l)
 onattr_hits=$(grep -rniE 'on(click|change|submit|load|error|mouseover|mouseout|input|focus|blur|keyup|keydown|dblclick)[[:space:]]*=' "$PROJECT/app/Views" 2>/dev/null | wc -l)
 assert_eq "zero inline style= attributes in app/Views source" "0" "$style_hits"

@@ -176,3 +176,66 @@ and the project-root `.htaccess` must still fail closed.
 not exercised, and this is what that limitation was worth. Anything else in the
 Apache and HTTPS layer is still unverified.
 
+## Apache verification, 2026-09-18
+
+The gap above is now substantially closed. The app was served through the
+machine's real Apache (XAMPP's, mounted via a directory junction into `htdocs`
+so no XAMPP configuration was edited, removed afterwards) and the suites were
+re-run against it. `common.sh` now honours `CCIS_BASE`, so any suite can be
+pointed at any server:
+
+```
+CCIS_BASE=http://localhost/ccis bash docs/qa/suites/suite_security_audit.sh
+```
+
+| Suite | Dev server | Apache |
+|---|---|---|
+| `suite_security_audit` | 32 / 0 | **32 / 0** |
+| `suite_document_viewer` | 33 / 0 | **33 / 0** |
+| `suite_rbac` | 141 / 0 | **141 / 0** |
+| `smoke_postcommit` | 49 / 0 | **49 / 0** |
+| `suite_navigation` | 159 / 0 | 139 / 20 — see below |
+
+Measured directly through Apache, beyond the suites:
+
+- The framed route sends exactly one `X-Frame-Options: SAMEORIGIN` and one CSP
+  with `frame-ancestors 'self'` — the fix above, confirmed on the real thing.
+- Static assets still carry all four headers from `.htaccess`.
+- `/assets/css/` gives 403, not a directory listing.
+- `.env`, `app/`, `storage/uploads/` and `database/seed.sql` are unreachable.
+- Sign-in, the monitoring board, the document viewer page and asset loading all
+  work under a subfolder mount, which confirms the `BASE_URL`-from-`SCRIPT_NAME`
+  derivation rather than just assuming it.
+
+### Two things this run corrected in the tests themselves
+
+**The `§13` Apache checks had been silently skipping.** Their relative paths were
+one level short (`docs/qa/suites/../..` is `docs/`, not the repo root), so the
+file-existence guards short-circuited and the avatar-store assertion was an `ls`
+of a directory that does not exist — counting zero files and passing. A vacuous
+pass is worse than a failure, and it only came to light because the one path
+without a guard failed out loud on Apache. Paths now resolve from a single
+`$REPO`, and a missing file fails instead of skipping.
+
+**`suite_document_viewer` §4 was asserting the environment, not the app.** It
+demanded 404 for `/documents/{id}.pdf`, which is true only on the dev server
+(it answers extension-bearing URIs from disk before the router runs). Apache
+routes it, the `{id}` is `(int)`-coerced, and the viewer page for document 1 is
+rendered — `text/html`, with ownership still enforced (faculty2 404, anonymous
+302, verified). The assertion now checks what must hold on both: never raw file
+bytes, and never a way around ownership.
+
+`suite_navigation`'s 20 failures are all one class — it greps root-anchored
+hrefs (`href="/notifications"`), which correctly appear as `/ccis/notifications`
+under a subfolder mount. A real deployment points DocumentRoot at `public/` and
+is root-mounted, so the suite applies as written; the assumption is now stated
+in its header. Its last hard-coded absolute path was also replaced with one
+resolved from the script's own location.
+
+### Still not covered
+
+HTTPS end-to-end, HSTS and the `Secure` cookie flag: this ran over plain HTTP.
+A **root-mounted** Apache is also still unverified — the junction mounts the app
+at `/ccis`, and while that exercises `.htaccess`, mod_rewrite and the header
+stack, it is not the document-root layout a deployment uses.
+

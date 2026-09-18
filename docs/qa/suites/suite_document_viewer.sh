@@ -19,8 +19,16 @@ login "$F1"  faculty1@nwssu.edu.ph  'Faculty@123'   >/dev/null
 login "$F2"  faculty2@nwssu.edu.ph  'Faculty@123'   >/dev/null
 
 # The one file in the demo data belongs to faculty1 (user 2).
+#
+# The href pattern is deliberately not anchored at "/documents": the app derives
+# BASE_URL from SCRIPT_NAME, so its links carry whatever prefix it is mounted
+# under, and an anchored pattern found nothing when this suite was pointed at an
+# Apache instance serving the app from a subfolder — reporting "no document
+# reachable" against an app that was working perfectly. The id is taken from the
+# END of the href, since a mount prefix could contain digits of its own.
 FID=$(curl -s -c "$F1" -b "$F1" "$BASE/faculty/requirements" \
-      | grep -oE 'href="/documents/[0-9]+"' | head -1 | grep -oE '[0-9]+')
+      | grep -oE 'href="[^"]*/documents/[0-9]+"' | head -1 \
+      | grep -oE '[0-9]+"$' | tr -d '"')
 
 if [ -z "$FID" ]; then
   fail "no document reachable from the faculty checklist — cannot run this suite"
@@ -97,20 +105,51 @@ else
   assert_eq "a non-PDF is refused by the inline route" 404 "$view_code"
 fi
 
-# --- 4. the router is not bypassed by an extension --------------------------
-# The PHP dev server serves any URI containing a file extension straight from
-# disk, so an extension-bearing variant must not reach a file.
-assert_eq "/documents/{id}.pdf does not bypass the router" 404 \
-  "$(http_code "$SEC" "$BASE/documents/$FID.pdf")"
+# --- 4. an extension-bearing variant is handled safely ----------------------
+# This assertion used to demand a 404, which is only true on the PHP dev server:
+# it serves any URI containing an extension straight from disk, finds no
+# public/documents/1.pdf, and answers 404 before the router is reached. On
+# APACHE the rewrite hands the same URI to the router, the {id} placeholder is
+# (int)-coerced, and it renders the viewer page for document 1 — verified
+# 2026-09-18 against a real Apache. Both answers are correct for their server,
+# so a fixed code was testing the environment rather than the application.
+#
+# What must be true on BOTH: the response is never raw file bytes handed out by
+# the web server, and the ownership check still applies to the odd URL shape.
+ext_code=$(http_code "$SEC" "$BASE/documents/$FID.pdf")
+ext_type=$(curl -s -o /dev/null -w '%{content_type}' -c "$SEC" -b "$SEC" "$BASE/documents/$FID.pdf")
+
+case "$ext_code" in
+  404) pass "an extension-bearing document URL is refused outright (got 404)" ;;
+  200)
+    case "$ext_type" in
+      text/html*) pass "an extension-bearing document URL reaches the router, not the disk ($ext_type)" ;;
+      *) fail "an extension-bearing document URL served $ext_type — the web server may be handing out the file" ;;
+    esac
+    ;;
+  *) fail "an extension-bearing document URL answered $ext_code" ;;
+esac
+
+# The important half: the odd shape is not a way around ownership.
+assert_eq "another faculty is still refused the extension-bearing URL" 404 \
+  "$(http_code "$F2" "$BASE/documents/$FID.pdf")"
+# Anonymous differs by server for the same reason: the dev server answers 404
+# before the router (so Guard never runs), Apache routes it and Guard redirects.
+# Either is fine; a 200 never is.
+anon_ext=$(http_code "$QA/dv_anon3.jar" "$BASE/documents/$FID.pdf")
+case "$anon_ext" in
+  302|404) pass "anonymous gets nothing from the extension-bearing URL (got $anon_ext)" ;;
+  *) fail "anonymous got $anon_ext from the extension-bearing URL" ;;
+esac
 
 # --- 5. every list offers the viewer ----------------------------------------
 for path in /admin/monitoring /archive/1 "/submissions/7"; do
-  n=$(curl -s -c "$SEC" -b "$SEC" "$BASE$path" | grep -cE 'href="/documents/[0-9]+"')
+  n=$(curl -s -c "$SEC" -b "$SEC" "$BASE$path" | grep -cE 'href="[^"]*/documents/[0-9]+"')
   if [ "$n" -ge 0 ]; then pass "screen $path renders without error"; fi
 done
 # At least one, not exactly one: faculty upload more documents over time and
 # a count assertion turns every new submission into a test failure.
-fac_links=$(curl -s -c "$F1" -b "$F1" "$BASE/faculty/requirements" | grep -cE 'href="/documents/[0-9]+"')
+fac_links=$(curl -s -c "$F1" -b "$F1" "$BASE/faculty/requirements" | grep -cE 'href="[^"]*/documents/[0-9]+"')
 if [ "$fac_links" -ge 1 ]; then
   pass "faculty checklist links to the viewer ($fac_links link(s))"
 else
@@ -138,7 +177,7 @@ if echo "$render" | grep -q 'class="doc-render"'; then
   # failed; there must still be exactly one (the app.js include).
   assert_eq "rendered document adds no <script> tag" 1     "$(echo "$render" | grep -c '<script')"
 
-  rid=$(echo "$render" | grep -oE '/documents/[0-9]+/media/[A-Za-z0-9]+' | head -1)
+  rid=$(echo "$render" | grep -oE '[^"]*/documents/[0-9]+/media/[A-Za-z0-9]+' | head -1)
 
   if [ -n "$rid" ]; then
     assert_eq "an embedded image is served" 200 "$(http_code "$SEC" "$BASE$rid")"

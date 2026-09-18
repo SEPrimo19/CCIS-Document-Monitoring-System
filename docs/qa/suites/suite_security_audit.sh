@@ -27,6 +27,9 @@ login "$F2" faculty2@nwssu.edu.ph  'Faculty@123'   >/dev/null
 # reads as HTTP 000).
 W=$(cygpath -m "$QA")
 
+# Repo root, resolved once: these suites sit three levels below it.
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+
 # --- 1. authentication: no protected screen answers an anonymous caller -----
 BAD=0
 for p in /dashboard /admin/dashboard /faculty/dashboard /admin/document-types /admin/users \
@@ -54,7 +57,7 @@ done
                  || fail "$BAD Secretary screen(s) leaked to Faculty"
 
 # --- 3. horizontal access between two faculty accounts ----------------------
-FID=$(curl -s -b "$F1" -c "$F1" "$BASE/faculty/requirements" | grep -oE 'href="/documents/[0-9]+"' | head -1 | grep -oE '[0-9]+')
+FID=$(curl -s -b "$F1" -c "$F1" "$BASE/faculty/requirements" | grep -oE 'href="[^"]*/documents/[0-9]+"' | head -1 | grep -oE '[0-9]+"$' | tr -d '"')
 if [ -n "$FID" ]; then
   assert_eq "another faculty cannot open the viewer"   404 "$(http_code "$F2" "$BASE/documents/$FID")"
   assert_eq "another faculty cannot download the file" 404 "$(http_code "$F2" "$BASE/documents/$FID/download")"
@@ -151,7 +154,7 @@ done
                  || fail "$BAD path(s) returned content that should not be reachable"
 
 # --- 9. the upload validators refuse hostile files --------------------------
-SUB=$(curl -s -b "$F1" -c "$F1" "$BASE/faculty/requirements" | grep -oE '/faculty/submissions/[0-9]+/upload' | head -1)
+SUB=$(curl -s -b "$F1" -c "$F1" "$BASE/faculty/requirements" | grep -oE '[^"]*/faculty/submissions/[0-9]+/upload' | head -1)
 docs_before=$(curl -s -b "$F1" -c "$F1" "$BASE/faculty/requirements" | grep -c 'Download')
 for f in malicious.exe fake_renamed.pdf oversized.pdf; do
   csrf=$(get_csrf "$F1" "/faculty/requirements")
@@ -166,9 +169,13 @@ if [ -d "$QA/avatar_fx" ]; then
     curl -s -o /dev/null -c "$F1" -b "$F1" -F "csrf_token=$csrf" -F "photo=@$W/avatar_fx/$f" "$BASE/profile/photo"
   done
   # An SVG accepted here would be stored XSS served from our own origin.
-  store="$(dirname "${BASH_SOURCE[0]}")/../../storage/avatars"
-  stored=$(ls "$store" 2>/dev/null | grep -cv gitignore)
-  assert_eq "5 hostile images rejected, nothing written to the avatar store" 0 "$stored"
+  store="$REPO/storage/avatars"
+  if [ -d "$store" ]; then
+    stored=$(ls "$store" | grep -cv gitignore)
+    assert_eq "5 hostile images rejected, nothing written to the avatar store" 0 "$stored"
+  else
+    fail "the avatar store is not where this suite expects it: $store"
+  fi
 fi
 
 # --- 10. privilege escalation through POST bodies ---------------------------
@@ -178,7 +185,7 @@ assert_eq "faculty cannot POST a review decision" 403 \
      --data-urlencode "csrf_token=$csrf" --data-urlencode "decision=Approved" \
      --data-urlencode "current_version=1" "$BASE/reviewer/submissions/1/review")"
 
-OTHER=$(curl -s -b "$F2" -c "$F2" "$BASE/faculty/requirements" | grep -oE '/faculty/submissions/[0-9]+/upload' | head -1)
+OTHER=$(curl -s -b "$F2" -c "$F2" "$BASE/faculty/requirements" | grep -oE '[^"]*/faculty/submissions/[0-9]+/upload' | head -1)
 csrf=$(get_csrf "$F1" "/faculty/requirements")
 assert_eq "faculty cannot upload into another account's submission" 404 \
   "$(curl -s -o /dev/null -w "%{http_code}" -c "$F1" -b "$F1" \
@@ -224,8 +231,10 @@ done
 # This is the one part of the stack these suites CANNOT exercise at runtime:
 # the PHP dev server ignores .htaccess entirely, so a rule that breaks the app
 # on Apache passes every live test here. It is checked by reading instead.
-HT="$(dirname "${BASH_SOURCE[0]}")/../../public/.htaccess"
-if [ -f "$HT" ]; then
+HT="$REPO/public/.htaccess"
+if [ ! -f "$HT" ]; then
+  fail "public/.htaccess is missing — Apache would have no rewrite rules and no header backup"
+else
   # Unscoped Header directives also apply to PHP responses, and `always` merges
   # with what PHP already sent rather than replacing it — two X-Frame-Options on
   # one response, which a browser resolves as "deny". That breaks the one route
@@ -240,7 +249,7 @@ fi
 
 # The project-root .htaccess is the safety net for a mis-set DocumentRoot: with
 # it, that mistake fails closed instead of serving .env and storage/uploads/.
-ROOT_HT="$(dirname "${BASH_SOURCE[0]}")/../../.htaccess"
+ROOT_HT="$REPO/.htaccess"
 if grep -qE 'Require all denied|Deny from all' "$ROOT_HT" 2>/dev/null; then
   pass "a mis-set DocumentRoot fails closed"
 else
