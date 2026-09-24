@@ -25,7 +25,13 @@ If XAMPP with PHP 8.1+ is already installed, the short version is:
 git clone https://github.com/SEPrimo19/CCIS-Document-Monitoring-System.git
 cd CCIS-Document-Monitoring-System
 copy .env.example .env
+echo APP_ENV=development>> .env
 ```
+
+That last line is not optional. `.env.example` ships with `APP_ENV`
+commented out, so that copying it can never put a real deployment into debug
+mode. Without the line, the next step stops with `REFUSED: migrate.php drops
+and recreates every table, and APP_ENV is 'production'.`
 
 Start **MySQL** in the XAMPP Control Panel, then:
 
@@ -33,6 +39,12 @@ Start **MySQL** in the XAMPP Control Panel, then:
 C:\xampp\php\php.exe scripts/db_setup.php
 C:\xampp\php\php.exe scripts/migrate.php
 C:\xampp\php\php.exe -S localhost:8000 -t public
+```
+
+If any of it fails, this says exactly which part and how to fix it:
+
+```
+C:\xampp\php\php.exe scripts/doctor.php
 ```
 
 Open <http://localhost:8000> and sign in as `secretary@nwssu.edu.ph` /
