@@ -64,6 +64,7 @@ their defaults are convenient, not safe.
 | Document | What it is for |
 |---|---|
 | [SETUP.md](SETUP.md) | Running the system on your own computer |
+| [TEAM-WORKFLOW.md](TEAM-WORKFLOW.md) | Two people, two machines: pulling changes, and the database step a pull does not do |
 | [DEPLOYMENT.md](DEPLOYMENT.md) | Hosting it on a real server |
 | [docs/SECURITY.md](docs/SECURITY.md) | Security posture, review findings, hardening reference |
 
