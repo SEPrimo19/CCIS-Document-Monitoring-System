@@ -75,7 +75,12 @@ $formatSize = static function (int $bytes): string {
         <div><dt>Status</dt><dd><span class="status-pill <?= $pillClass ?>"><?= htmlspecialchars($submission['status']) ?></span></dd></div>
         <div><dt>Current version</dt><dd><?= (int) $submission['current_version'] > 0 ? 'v' . (int) $submission['current_version'] : 'Not yet submitted' ?></dd></div>
         <div>
-            <dt>First submitted</dt>
+            <?php /* "Last", not "First": submitted_at is re-stamped by every
+                     upload, which is correct — the review queue orders on it
+                     and three Secretary screens show it as "waiting since".
+                     The genuine first-upload time is in Version history below,
+                     as v1's Uploaded date. */ ?>
+            <dt>Last submitted</dt>
             <dd><?= $submission['submitted_at'] !== null ? htmlspecialchars(date('M j, Y g:ia', strtotime($submission['submitted_at']))) : '&mdash;' ?></dd>
         </div>
         <div><dt>Last updated</dt><dd><?= htmlspecialchars(date('M j, Y g:ia', strtotime($submission['updated_at']))) ?></dd></div>
