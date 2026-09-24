@@ -129,6 +129,50 @@ try {
             if ($users === 0) {
                 say('warn', 'No user accounts exist', 'You will not be able to sign in.');
             }
+
+            // Compare the live tables against database/schema.sql. A column the
+            // schema defines but the database lacks is the failure mode that is
+            // hardest to read from the outside: the app starts, sign-in works,
+            // and then every signed-in page answers 500 with an "Unknown column"
+            // message. It happens when a migration adds a column by ALTER and a
+            // database built earlier never receives it.
+            $schemaFile = $root . '/database/schema.sql';
+            if (is_file($schemaFile)) {
+                $sqlText = (string) file_get_contents($schemaFile);
+                $drift = [];
+                if (preg_match_all('/CREATE TABLE (\w+)\s*\((.*?)\n\)\s*ENGINE/s', $sqlText, $mm, PREG_SET_ORDER)) {
+                    foreach ($mm as $block) {
+                        [$whole, $tableName, $bodyText] = $block;
+                        if (!in_array($tableName, $tables, true)) {
+                            $drift[] = "table {$tableName} is missing entirely";
+                            continue;
+                        }
+                        $liveCols = $pdo->query("SHOW COLUMNS FROM `{$tableName}`")->fetchAll(PDO::FETCH_COLUMN);
+                        foreach (explode("\n", $bodyText) as $line) {
+                            $line = trim($line);
+                            if ($line === '' || str_starts_with($line, '--')) {
+                                continue;
+                            }
+                            if (preg_match('/^([a-z_]+)\s+(INT|VARCHAR|TEXT|DATE|DATETIME|TINYINT|ENUM|DECIMAL|BIGINT)/i', $line, $c)
+                                && !in_array($c[1], $liveCols, true)) {
+                                $drift[] = "{$tableName}.{$c[1]}";
+                            }
+                        }
+                    }
+                }
+                if ($drift === []) {
+                    say('ok', 'Database matches database/schema.sql');
+                } else {
+                    say('FAIL', 'Database is missing columns the code expects',
+                        implode(', ', $drift) . "\n"
+                        . "Your database was created before these were added. Bring it up to\n"
+                        . "date WITHOUT losing your data:\n"
+                        . "    C:\\xampp\\php\\php.exe scripts/migrate_batch_a.php\n"
+                        . "    C:\\xampp\\php\\php.exe scripts/migrate_batch_c.php\n"
+                        . "Both are ALTER-based and safe to re-run. Only if the data does not\n"
+                        . "matter, scripts/migrate.php rebuilds everything from scratch.");
+                }
+            }
         }
     }
 } catch (PDOException $e) {

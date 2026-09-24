@@ -65,6 +65,20 @@ CREATE TABLE users (
     -- let them edit their way out of a requirement targeted at it.
     -- NULL for the Secretary, who belongs to the office rather than a program.
     program_id    INT          DEFAULT NULL,
+    -- Stored filename of the optional profile photo (FR-40), NULL until someone
+    -- uploads one. VARCHAR(120) against a generated name of about 30 characters
+    -- (u<id>_<16 hex>.<ext>): room for a longer scheme later, still far short of
+    -- anything that could hold a path. The file itself lives outside the web
+    -- root in storage/avatars/ and only the name is kept here.
+    --
+    -- This column was added to running installations by
+    -- scripts/migrate_batch_c.php but was not back-ported here until
+    -- 2026-09-24, so every fresh install built from this file created a users
+    -- table without it, and then answered 500 on every signed-in page:
+    --   SQLSTATE[42S22]: Unknown column 'u.avatar_path' in 'field list'
+    -- Guard re-reads the account on each request and selects this column, so a
+    -- missing one breaks the whole application rather than just the photo.
+    avatar_path   VARCHAR(120) DEFAULT NULL,
     status        ENUM('active','inactive') NOT NULL DEFAULT 'active',
     created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     last_login    DATETIME     DEFAULT NULL,
