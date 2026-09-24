@@ -170,6 +170,19 @@ final class FacultyController extends Controller
             return;
         }
 
+        // A closed period is read-only, and ownership plus status does not say
+        // so: an item left Pending or Revised when the period closed is still
+        // owned and still uploadable by those two tests alone. The checklist
+        // stops showing it, but this POST route is reachable from the URL the
+        // app itself rendered while the item was outstanding, so the refusal
+        // has to live here. Checked BEFORE status, because "the period closed"
+        // is the more fundamental reason and the more useful message.
+        if ((int) $submission['period_is_active'] !== 1) {
+            $this->flash('err', 'That academic period has been closed. Documents can no longer be uploaded for it.');
+            $this->redirectToRequirements();
+            return;
+        }
+
         if (!in_array($submission['status'], ['Pending', 'Revised'], true)) {
             $this->flash('err', "This requirement can't be uploaded to right now.");
             $this->redirectToRequirements();

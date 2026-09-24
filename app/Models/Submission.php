@@ -294,14 +294,28 @@ final class Submission
      * The requirement `title` is joined in so the post-upload notification to
      * the reviewers (FR-21) can name the document without a second query.
      *
-     * @return array{submission_id:int,requirement_id:int,status:string,current_version:int,title:string}|null
+     * `period_is_active` is joined in for a different reason: ownership and
+     * status are NOT sufficient to authorize an upload. A requirement left
+     * Pending or Revised when its academic period closes stays owned by the
+     * faculty member and stays in an uploadable status forever, so without
+     * this the upload route accepts writes into a closed period — which the
+     * archive is documented to forbid, and which the review queue's
+     * deliberate acceptance of archived period ids would then let a Secretary
+     * approve. Hiding the requirement from the checklist does not close it:
+     * the upload URL was rendered to that faculty member every day the item
+     * was outstanding. The caller must refuse when this is 0. Confirmed
+     * exploitable and fixed 2026-09-24.
+     *
+     * @return array{submission_id:int,requirement_id:int,status:string,current_version:int,title:string,period_is_active:int}|null
      */
     public static function findOwned(int $submissionId, int $facultyId): ?array
     {
         $stmt = self::pdo()->prepare(
-            'SELECT s.submission_id, s.requirement_id, s.status, s.current_version, r.title
+            'SELECT s.submission_id, s.requirement_id, s.status, s.current_version, r.title,
+                    p.is_active AS period_is_active
              FROM submissions s
              INNER JOIN requirements r ON r.requirement_id = s.requirement_id
+             INNER JOIN academic_periods p ON p.period_id = r.period_id
              WHERE s.submission_id = :id AND s.faculty_id = :faculty_id
              LIMIT 1'
         );
@@ -316,7 +330,15 @@ final class Submission
 
     /**
      * Record a fresh upload: advance current_version, flip status to
-     * Submitted, and stamp submitted_at. Called FIRST inside the same
+     * Submitted, and stamp submitted_at. Note that submitted_at is re-stamped
+     * on EVERY upload including resubmissions, so it means "when the current
+     * submission arrived", not "first ever submitted". That is deliberate and
+     * load-bearing: queueForPeriod() orders the review queue on it, and the
+     * queue, monitoring matrix and status screens all show it as how long the
+     * item has been waiting. Do not switch it to a first-submission stamp —
+     * a months-old resubmission would jump to the front of the queue. The
+     * first-upload time is already preserved per-version in document_files.
+     * Called FIRST inside the same
      * transaction as the new document_files row (FacultyController::upload()),
      * before the file row is inserted. The `AND status IN (...)` clause is an
      * atomic concurrency guard against a double-upload race (TOCTOU): if two

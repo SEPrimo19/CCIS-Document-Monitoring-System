@@ -73,4 +73,66 @@ assert_eq "faculty1 archive view shows ONLY their own submissions" "$db_fac1_sub
 assert_eq "faculty2 archive view shows ONLY their own submissions" "$db_fac2_subs" "$fac2_rows"
 if [ "$fac1_rows" -lt "$sec_rows" ]; then pass "faculty archive view is a strict subset of the Secretary's full view (scoping confirmed, not just equal by coincidence)"; else fail "faculty archive view was NOT smaller than the Secretary's full view -- scoping may not be effective"; fi
 
+
+# --- REGRESSION (found and fixed 2026-09-24): a CLOSED period must refuse an
+# upload. The check above ("no POST route exists under /archive/*") is true but
+# was NOT sufficient on its own: the submission row stays reachable through the
+# still-live faculty upload route. An item left Pending or Revised when a
+# period closes is still owned by that faculty member and still in an
+# uploadable status, so ownership + status alone let it be written months later
+# by replaying the upload URL the app itself had rendered while the item was
+# outstanding -- and the review queue deliberately accepts archived period ids,
+# so a Secretary could then approve it. Proven exploitable before the fix;
+# FacultyController::upload() now refuses on academic_periods.is_active.
+#
+# This builds its own throwaway CLOSED period and deletes it again. It never
+# activates anything, so the live active period is never touched.
+REPO_ROOT="$(cd "$QA/../../.." && pwd)"
+closed_pid=$(DB "insert into academic_periods (school_year, semester, is_active) values ('2091-2092','1st',0); select last_insert_id();")
+closed_rid=$(DB "insert into requirements (doc_type_id, period_id, title, applies_to, deadline, created_by) values (1, $closed_pid, 'ZZ regression closed period', 'individual', '2091-12-31', 1); select last_insert_id();")
+closed_sid=$(DB "insert into submissions (requirement_id, faculty_id, status, current_version) values ($closed_rid, 2, 'Pending', 0); select last_insert_id();")
+
+RF1="$QA/au_closed_fac.jar"
+login "$RF1" "faculty1@nwssu.edu.ph" "Faculty@123" > /dev/null
+
+# Sanity: the fixture really is closed, and really is uploadable by the two
+# tests that used to be the whole guard.
+assert_eq "regression fixture period is closed" "0" "$(DB "select is_active from academic_periods where period_id=$closed_pid;")"
+assert_eq "regression fixture is faculty1's and uploadable by status" "Pending" "$(DB "select status from submissions where submission_id=$closed_sid;")"
+
+printf '%%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%%%EOF\n' > "$QA/au_closed.pdf"
+tok=$(get_csrf "$RF1" "/faculty/requirements")
+curl -s -o /dev/null -c "$RF1" -b "$RF1" -X POST "$BASE/faculty/submissions/$closed_sid/upload" \
+  -F "csrf_token=$tok" -F "document=@$WQA\\au_closed.pdf;type=application/pdf"
+
+assert_eq "upload into a CLOSED period leaves the status unchanged" "Pending" "$(DB "select status from submissions where submission_id=$closed_sid;")"
+assert_eq "upload into a CLOSED period stores no file" "0" "$(DB "select count(*) from document_files where submission_id=$closed_sid;")"
+assert_eq "upload into a CLOSED period does not advance the version" "0" "$(DB "select current_version from submissions where submission_id=$closed_sid;")"
+
+# Control: the identical POST must still SUCCEED in the ACTIVE period. Without
+# it the three assertions above would pass just as well if the request were
+# malformed, or if uploads were broken outright -- the difference between the
+# two fixtures is then the ONLY thing that can explain the difference in
+# outcome. It builds its own fixture rather than borrowing a real submission,
+# so it neither depends on nor disturbs the state of anyone's real work; an
+# earlier version looked for an existing Pending row and silently skipped once
+# the QA runs had left faculty1 with none.
+live_pid=$(DB "select period_id from academic_periods where is_active=1 limit 1;")
+open_rid=$(DB "insert into requirements (doc_type_id, period_id, title, applies_to, deadline, created_by) values (1, $live_pid, 'ZZ regression open period', 'individual', '2091-12-31', 1); select last_insert_id();")
+open_sid=$(DB "insert into submissions (requirement_id, faculty_id, status, current_version) values ($open_rid, 2, 'Pending', 0); select last_insert_id();")
+tok=$(get_csrf "$RF1" "/faculty/requirements")
+curl -s -o /dev/null -c "$RF1" -b "$RF1" -X POST "$BASE/faculty/submissions/$open_sid/upload" \
+  -F "csrf_token=$tok" -F "document=@$WQA\\au_closed.pdf;type=application/pdf"
+assert_eq "control: the same upload DOES succeed in the ACTIVE period (status)" "Submitted" "$(DB "select status from submissions where submission_id=$open_sid;")"
+assert_eq "control: the same upload DOES succeed in the ACTIVE period (file stored)" "1" "$(DB "select count(*) from document_files where submission_id=$open_sid;")"
+
+for f in $(DB "select file_path from document_files where submission_id=$open_sid;"); do
+  rm -f "$REPO_ROOT/$f"
+done
+DB "delete from requirements where requirement_id=$open_rid;" > /dev/null
+DB "delete from requirements where requirement_id=$closed_rid;" > /dev/null
+DB "delete from academic_periods where period_id=$closed_pid;" > /dev/null
+rm -f "$QA/au_closed.pdf" "$RF1"
+assert_eq "regression fixtures cleaned up" "0" "$(DB "select count(*) from academic_periods where period_id=$closed_pid;")"
+
 result_line
